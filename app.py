@@ -11,41 +11,99 @@ NOM_SITE = "Atelier Villeneuve-la-Garenne - Intranet Sécurité & Production"
 JOURS_SEMAINE = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
 
 AGENTS_INITIAUX = [
-    {"nom": "", "tel": "20", "badge": "1705", "contrat": "CDI", "debut": "2022-01-10", "fin": "", "dotation": "Complet (Casque, Gants, Chaussures)"},
-    {"nom": "", "tel": "14", "badge": "1706", "contrat": "CDI", "debut": "2022-03-15", "fin": "", "dotation": "Complet"},
-    {"nom": "", "tel": "2", "badge": "837", "contrat": "CDI", "debut": "2020-05-01", "fin": "", "dotation": "Complet"},
-    {"nom": "", "tel": "9", "badge": "1069", "contrat": "CDD", "debut": "2024-01-01", "fin": "2026-12-31", "dotation": "Complet"},
-    {"nom": "", "tel": "5", "badge": "830", "contrat": "CDI", "debut": "2019-06-12", "fin": "", "dotation": "Complet"},
-    {"nom": "", "tel": "1", "badge": "858", "contrat": "CDI", "debut": "2018-09-01", "fin": "", "dotation": "Complet"},
-    {"nom": "", "tel": "7", "badge": "839", "contrat": "CDI", "debut": "2021-02-14", "fin": "", "dotation": "Complet"},
-    {"nom": "", "tel": "4", "badge": "2084", "contrat": "CDI", "debut": "2022-07-01", "fin": "", "dotation": "Complet"},
-    {"nom": "", "tel": "19", "badge": "674", "contrat": "CDI", "debut": "2020-11-15", "fin": "", "dotation": "Complet"},
-    {"nom": "", "tel": "10", "badge": "945", "contrat": "CDD", "debut": "2025-02-01", "fin": "2026-06-30", "dotation": "Complet"},
-    {"nom": "", "tel": "13", "badge": "1476", "contrat": "CDI", "debut": "2023-01-10", "fin": "", "dotation": "Complet"},
-    {"nom": "", "tel": "25", "badge": "1397", "contrat": "CDI", "debut": "2023-04-05", "fin": "", "dotation": "Complet"},
-    {"nom": "", "tel": "18", "badge": "1739", "contrat": "CDI", "debut": "2021-09-18", "fin": "", "dotation": "Complet"},
-    {"nom": "", "tel": "15", "badge": "2000", "contrat": "CDD", "debut": "2025-01-15", "fin": "2026-07-15", "dotation": "Complet"},
-    {"nom": "", "tel": "16", "badge": "1703", "contrat": "CDI", "debut": "2022-10-01", "fin": "", "dotation": "Complet"},
-    {"nom": "", "tel": "21", "badge": "879", "contrat": "CDI", "debut": "2019-03-20", "fin": "", "dotation": "Complet"},
-    {"nom": "", "tel": "22", "badge": "1710", "contrat": "CDD", "debut": "2025-05-01", "fin": "2026-08-30", "dotation": "Complet"},
-    {"nom": "", "tel": "DIS", "badge": "948", "contrat": "CDI", "debut": "2017-01-01", "fin": "", "dotation": "Complet"},
-    {"nom": "", "tel": "", "badge": "", "contrat": "CDD", "debut": "2026-01-01", "fin": "2026-12-31", "dotation": "Partiel"},
-    {"nom": "", "tel": "RET", "badge": "832", "contrat": "CDI", "debut": "2015-01-01", "fin": "", "dotation": "Complet"},
-    {"nom": "AHMED MOHAMED ", "tel": "23", "badge": "", "contrat": "CDI", "debut": "2024-06-01", "fin": "", "dotation": "Complet"},
+    {"nom": "ABBAS HAMZA", "tel": "20", "badge": "1705", "contrat": "CDI", "debut": "2022-01-10", "fin": "", "dotation": "Complet (Casque, Gants, Chaussures)"},
+    {"nom": "ALI ABDALLAH YAHIA", "tel": "14", "badge": "1706", "contrat": "CDI", "debut": "2022-03-15", "fin": "", "dotation": "Complet"},
+    {"nom": "BOUMEDIENNE LAZAAR", "tel": "2", "badge": "837", "contrat": "CDI", "debut": "2020-05-01", "fin": "", "dotation": "Complet"},
+    {"nom": "DEDOU BENGARA", "tel": "9", "badge": "1069", "contrat": "CDD", "debut": "2024-01-01", "fin": "2026-12-31", "dotation": "Complet"},
+    {"nom": "FABRICE CREYX", "tel": "5", "badge": "830", "contrat": "CDI", "debut": "2019-06-12", "fin": "", "dotation": "Complet"},
+    {"nom": "FARID SALHI", "tel": "1", "badge": "858", "contrat": "CDI", "debut": "2018-09-01", "fin": "", "dotation": "Complet"},
+    {"nom": "FETHI ABDELHAMIDE", "tel": "7", "badge": "839", "contrat": "CDI", "debut": "2021-02-14", "fin": "", "dotation": "Complet"},
+    {"nom": "KEBE BAMBO", "tel": "4", "badge": "2084", "contrat": "CDI", "debut": "2022-07-01", "fin": "", "dotation": "Complet"},
+    {"nom": "KORAICH YOUNES", "tel": "19", "badge": "674", "contrat": "CDI", "debut": "2020-11-15", "fin": "", "dotation": "Complet"},
+    {"nom": "LOIC FLORIS", "tel": "10", "badge": "945", "contrat": "CDD", "debut": "2025-02-01", "fin": "2026-06-30", "dotation": "Complet"},
+    {"nom": "MAHMOUD AHMEDIN ALHAJ", "tel": "13", "badge": "1476", "contrat": "CDI", "debut": "2023-01-10", "fin": "", "dotation": "Complet"},
+    {"nom": "MAMADOU MALAL BALDE", "tel": "25", "badge": "1397", "contrat": "CDI", "debut": "2023-04-05", "fin": "", "dotation": "Complet"},
+    {"nom": "MICHAEL HUYNH", "tel": "18", "badge": "1739", "contrat": "CDI", "debut": "2021-09-18", "fin": "", "dotation": "Complet"},
+    {"nom": "MOUSSA OMAR MUSTAPHA", "tel": "15", "badge": "2000", "contrat": "CDD", "debut": "2025-01-15", "fin": "2026-07-15", "dotation": "Complet"},
+    {"nom": "MUSTAPHA ASSAN ABAKER", "tel": "16", "badge": "1703", "contrat": "CDI", "debut": "2022-10-01", "fin": "", "dotation": "Complet"},
+    {"nom": "OSMAN ABDELAZIZ CDI", "tel": "21", "badge": "879", "contrat": "CDI", "debut": "2019-03-20", "fin": "", "dotation": "Complet"},
+    {"nom": "OSMAN ABDELAZIZ CDD", "tel": "22", "badge": "1710", "contrat": "CDD", "debut": "2025-05-01", "fin": "2026-08-30", "dotation": "Complet"},
+    {"nom": "ROMEO PENA", "tel": "DIS", "badge": "948", "contrat": "CDI", "debut": "2017-01-01", "fin": "", "dotation": "Complet"},
+    {"nom": "FONTALVO PATERNINA", "tel": "", "badge": "", "contrat": "CDD", "debut": "2026-01-01", "fin": "2026-12-31", "dotation": "Partiel"},
+    {"nom": "CHARLES NERIS", "tel": "RET", "badge": "832", "contrat": "CDI", "debut": "2015-01-01", "fin": "", "dotation": "Complet"},
+    {"nom": "AHMED MOHAMED AMAR", "tel": "23", "badge": "", "contrat": "CDI", "debut": "2024-06-01", "fin": "", "dotation": "Complet"},
 ]
 
 st.set_page_config(page_title=NOM_SITE, page_icon="🚲", layout="wide")
 
-# STYLE CSS PERSONNALISÉ
+# --- STYLE CSS AMÉLIORÉ : LISIBILITÉ & COULEURS LISIBLES ---
 st.markdown(
     """
 <style>
-.stApp { background-color: #f4f6f9; }
-[data-testid="stSidebar"] { background-color: #17324d; color: white; }
-[data-testid="stSidebar"] * { color: white !important; }
-.vlg-banner { padding: 20px 24px; border-radius: 14px; background: linear-gradient(135deg, #17324d, #2364aa); color: white; margin-bottom: 20px; }
-.card-menu { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); text-align: center; border-top: 4px solid #2364aa; margin-bottom: 15px; }
-.card-menu h3 { color: #17324d; margin-bottom: 8px; }
+/* Fond général */
+.stApp { 
+    background-color: #f1f5f9 !important; 
+    color: #0f172a !important; 
+}
+
+/* Forcer la couleur du texte partout */
+p, span, label, div, h1, h2, h3, h4, h5, h6 { 
+    color: #0f172a !important; 
+}
+
+/* Sidebar personnalisée avec écriture blanche bien lisible */
+[data-testid="stSidebar"] { 
+    background-color: #0f172a !important; 
+}
+[data-testid="stSidebar"] * { 
+    color: #ffffff !important; 
+}
+
+/* Bannière principale */
+.vlg-banner { 
+    padding: 22px 28px; 
+    border-radius: 14px; 
+    background: linear-gradient(135deg, #0f172a, #1e3a8a); 
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    margin-bottom: 22px; 
+}
+.vlg-banner h1, .vlg-banner p { 
+    color: #ffffff !important; 
+}
+
+/* Cartes du menu principal */
+.card-menu { 
+    background-color: #ffffff !important; 
+    padding: 20px; 
+    border-radius: 12px; 
+    box-shadow: 0 4px 10px rgba(0,0,0,0.08); 
+    text-align: center; 
+    border-top: 5px solid #2563eb; 
+    margin-bottom: 18px; 
+}
+.card-menu h3 { 
+    color: #1e3a8a !important; 
+    margin-bottom: 8px; 
+    font-weight: 700;
+}
+.card-menu p {
+    color: #334155 !important;
+}
+
+/* Tableaux de données (Dataframe) : Fond clair, écriture foncée très lisible */
+[data-testid="stDataFrame"] {
+    background-color: #ffffff !important;
+    border-radius: 10px;
+    padding: 10px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+}
+
+/* Champs de texte et formulaires */
+input, select, textarea {
+    color: #0f172a !important;
+    background-color: #ffffff !important;
+}
+
 </style>
 """,
     unsafe_allow_html=True,
@@ -70,7 +128,6 @@ if "securite_db" not in st.session_state:
         "dossiers_site": []
     }
 if "leve_velos_db" not in st.session_state:
-    # 30 lève-vélos initialisés
     st.session_state["leve_velos_db"] = [
         {"id": i, "nom": f"Lève-Vélo n°{i}", "statut": "Opérationnel", "anomalie": "", "intervention": "Aucune", "date_intervention": "-"}
         for i in range(1, 31)
@@ -120,13 +177,11 @@ menu = st.sidebar.radio(
 # 0. ACCUEIL & MENU PRINCIPAL (ICÔNES)
 # ==========================================
 if menu == "🏠 Accueil & Menu Principal":
-    st.markdown('<div class="vlg-banner"><h1> Tableau de Bord de l\'Atelier VLG</h1><p>Sélectionnez un module ci-dessous ou utilisez le menu latéral.</p></div>', unsafe_allow_html=True)
+    st.markdown('<div class="vlg-banner"><h1>🚲 Tableau de Bord de l\'Atelier VLG</h1><p>Sélectionnez un module ci-dessous ou utilisez le menu latéral.</p></div>', unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns(3)
     with col1:
         st.markdown('<div class="card-menu"><h3>👷 Suivi Personnel</h3><p>Gestion des 30 agents max, contrats, dotations & fiches PDF.</p></div>', unsafe_allow_html=True)
-        if st.button("Ouvrir Suivi Personnel", use_container_width=True):
-            st.switch_page = "👷 1. Suivi Personnel & Dotations" # Simplifié via navigation radio
     with col2:
         st.markdown('<div class="card-menu"><h3>📅 Planning & Heures Sup</h3><p>Gestion S1-S52, présence, HC/HS et mention FC automatique.</p></div>', unsafe_allow_html=True)
     with col3:
@@ -146,7 +201,6 @@ if menu == "🏠 Accueil & Menu Principal":
 elif menu == "👷 1. Suivi Personnel & Dotations":
     st.header("👷 1. Suivi Personnel, Contrats & Dotations (Max 30 Agents)")
     
-    # Formulaire d'ajout d'agent
     with st.expander("➕ Ajouter un nouvel agent (Limite 30 max)"):
         if len(st.session_state["agents_db"]) >= 30:
             st.error("La limite maximale de 30 agents est atteinte.")
@@ -178,16 +232,12 @@ elif menu == "👷 1. Suivi Personnel & Dotations":
 
     st.divider()
     
-    # Barre de recherche par nom
     recherche_nom = st.text_input("🔍 Rechercher un agent par son nom :", placeholder="Ex: ABBAS...")
-    
     agents_filtres = {k: v for k, v in st.session_state["agents_db"].items() if recherche_nom.lower() in k.lower()}
 
-    # Affichage de la liste résumée (dotation, tel, badge)
     st.subheader("📋 Liste des Mécaniciens de l'Atelier")
     liste_resume = []
     for nom, inf in agents_filtres.items():
-        # Vérification si Fin de Contrat (FC) atteinte
         statut_contrat = inf["contrat"]
         if statut_contrat == "CDD" and inf["fin"]:
             try:
@@ -208,7 +258,6 @@ elif menu == "👷 1. Suivi Personnel & Dotations":
     df_agents_resume = pd.DataFrame(liste_resume)
     st.dataframe(df_agents_resume, use_container_width=True, hide_index=True)
 
-    # Bouton téléchargement liste en PDF / Excel
     output_excel = io.BytesIO()
     with pd.ExcelWriter(output_excel, engine="openpyxl") as writer:
         df_agents_resume.to_excel(writer, index=False, sheet_name="Mecaniciens_VLG")
@@ -237,7 +286,6 @@ elif menu == "👷 1. Suivi Personnel & Dotations":
             doc_joint = st.file_uploader(f"Injecter un contrat ou attestation pour {agent_selectionne}", type=["pdf", "png", "jpg"], key=f"doc_{agent_selectionne}")
             if doc_joint:
                 st.success(f"Document {doc_joint.name} injecté avec succès pour {agent_selectionne} !")
-                st.download_button("Télécharger le document injecté", data=doc_joint.getvalue(), file_name=doc_joint.name)
 
 # ==========================================
 # 2. PLANNING, PRÉSENCES & HEURES SUP
@@ -246,11 +294,10 @@ elif menu == "📅 2. Planning, Présences & Heures Sup":
     st.header("📅 Planning Annuel S1 à S52 & Heures Supplémentaires")
     semaine_num = st.selectbox("Sélectionner la Semaine", list(range(1, 53)), format_func=lambda x: f"Semaine {x}")
     
-    st.info("💡 L'ajout d'un agent dans le module 'Suivi Personnel' se répercute instantanément ici. La mention 'FC' s'affiche si le contrat est échu.")
+    st.info("💡 L'ajout d'un agent se répercute instantanément. La mention 'FC' s'affiche si le contrat est échu.")
 
     records_planning = []
     for agent, infos in st.session_state["agents_db"].items():
-        # Vérification fin de contrat FC
         aff_nom = agent
         if infos["contrat"] == "CDD" and infos["fin"]:
             try:
@@ -264,7 +311,6 @@ elif menu == "📅 2. Planning, Présences & Heures Sup":
             key = f"S{semaine_num}_{agent}_{j}"
             row[j] = st.session_state["planning_db"].get(key, "07h-14h")
         
-        # Option Heures Sup (HS)
         key_hs = f"S{semaine_num}_{agent}_HS"
         row["Heures Sup (h)"] = st.session_state["planning_db"].get(key_hs, 0.0)
         records_planning.append(row)
@@ -285,7 +331,7 @@ elif menu == "📅 2. Planning, Présences & Heures Sup":
 # ==========================================
 elif menu == "📊 3. Suivi de la Production":
     st.header("📊 Analyse de la Production (Fichiers Atelier)")
-    st.write("Importez vos fichiers CSV ou Excel de production journalière avec les critères habituels.")
+    st.write("Importez vos fichiers CSV ou Excel de production journalière.")
     
     prod_file = st.file_uploader("📂 Déposer le fichier de production atelier", type=["xlsx", "csv"])
     if prod_file:
@@ -297,14 +343,13 @@ elif menu == "📊 3. Suivi de la Production":
             st.success(f"Fichier chargé avec succès : {len(df_prod)} lignes analysées.")
             st.dataframe(df_prod.head(20), use_container_width=True)
         except Exception as e:
-            st.error(f-'{e}')
+            st.error(f"Erreur lors de la lecture : {e}")
 
 # ==========================================
 # 4. DROITS DE PRIME
 # ==========================================
 elif menu == "💶 4. Droits de Prime":
     st.header("💶 Droits et Calcul des Primes Mensuelles")
-    st.info("Barème dynamique appliqué : 6 vélos (50€) jusqu'à 10 vélos et plus (155€).")
     
     velos_input = st.number_input("Nombre de vélos traités par l'agent", 0, 30, 8)
     if velos_input < 6:
@@ -329,10 +374,8 @@ elif menu == "🚨 5. Sécurité, Lève-Vélos & AT":
         "⚠️ Accidents du Travail & Filtre Date"
     ])
 
-    # --- TAB 1 : LES 30 LÈVE-VÉLOS ---
     with tab_s1:
         st.subheader("🔧 Suivi des 30 Lève-Vélos connectés avec l'atelier")
-        st.write("Les agents signalent les anomalies ci-dessous. L'administrateur peut répondre, valider les travaux et noter la date d'intervention.")
 
         for lv in st.session_state["leve_velos_db"]:
             with st.expander(f"📍 {lv['nom']} — Statut : {lv['statut']}"):
@@ -348,9 +391,8 @@ elif menu == "🚨 5. Sécurité, Lève-Vélos & AT":
                     lv['intervention'] = travaux_faits
                     lv['date_intervention'] = date_interv.isoformat()
                     lv['statut'] = "Réparé / Conforme" if travaux_faits else "En attente"
-                    st.success(f"Mise à jour enregistrée pour {lv['nom']} ! Historique stocké.")
+                    st.success(f"Mise à jour enregistrée pour {lv['nom']} !")
 
-    # --- TAB 2 : FICHES & HISTORIQUE SALARIÉS ---
     with tab_s2:
         st.subheader("📂 Fiches de Sécurité & Historique par Salarié")
         recherche_sec = st.selectbox("Sélectionner un salarié", list(st.session_state["agents_db"].keys()), key="sec_sal")
@@ -375,7 +417,6 @@ elif menu == "🚨 5. Sécurité, Lève-Vélos & AT":
         else:
             st.info("Aucun document de sécurité pour cet agent.")
 
-    # --- TAB 3 : MINUTES SÉCURITÉ ---
     with tab_s3:
         st.subheader("📄 Minutes de Sécurité & Dossiers de Site")
         titre_min = st.text_input("Titre de la Minute / Sujet de Sécurité")
@@ -383,12 +424,11 @@ elif menu == "🚨 5. Sécurité, Lève-Vélos & AT":
         if st.button("Ajouter la minute de sécurité"):
             if titre_min and doc_min:
                 st.session_state["securite_db"]["minutes"].append({"titre": titre_min, "fichier": doc_min.name, "date": datetime.date.today().isoformat()})
-                st.success("Minute de sécurité ajoutée et archivée avec succès.")
+                st.success("Minute de sécurité ajoutée et archivée.")
 
         if st.session_state["securite_db"]["minutes"]:
             st.dataframe(pd.DataFrame(st.session_state["securite_db"]["minutes"]), use_container_width=True)
 
-    # --- TAB 4 : ACCIDENTS DU TRAVAIL & FILTRE PAR DATE ---
     with tab_s4:
         st.subheader("⚠️ Registre des Accidents du Travail (AT) & Filtrage par Date")
         date_filtre = st.date_input("Filtrer l'historique à partir du :", value=datetime.date.today() - datetime.timedelta(days=365))
@@ -416,7 +456,6 @@ elif menu == "🚨 5. Sécurité, Lève-Vélos & AT":
 # ==========================================
 elif menu == "✉️ 6. Diffusion Société & Mail":
     st.header("✉️ Diffusion de Notes & Documents aux Salariés")
-    st.write("Envoyez automatiquement des documents de sécurité, notes d'information ou plannings par e-mail ou notification aux salariés de l'atelier.")
 
     with st.form("form_diffusion"):
         sujet_mail = st.text_input("Objet de la diffusion")

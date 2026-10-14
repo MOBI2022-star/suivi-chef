@@ -1,40 +1,77 @@
 import datetime
 import io
-import os
+import re
 import openpyxl
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
-from openpyxl.utils import get_column_letter
 import pandas as pd
 import streamlit as st
 
 NOM_SITE = "Atelier Villeneuve-la-Garenne - Intranet Sécurité & Production"
 JOURS_SEMAINE = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
 
+# Constantes de colonnes pour les fichiers Excel de l'atelier (export WO EBO)
+ACTOR_COL = "Assigné à l'acteur Libellé"
+CAT_ABC_COL = "smovCategory"
+CAT_MODEL_COL = "Modèle d'équipement"
+MAT_COL = "Matériel"
+CHARGE_COL = "Charge prévue"
+ETAT_COL = "Etat"
+
+# 5 Agents exemples modifiables au lieu d'une liste figée en dur
 AGENTS_INITIAUX = [
-    {"nom": "ABBAS HAMZA", "tel": "20", "badge": "1705", "contrat": "CDI", "debut": "2022-01-10", "fin": "", "dotation": "Complet (Casque, Gants, Chaussures)"},
-    {"nom": "ALI ABDALLAH YAHIA", "tel": "14", "badge": "1706", "contrat": "CDI", "debut": "2022-03-15", "fin": "", "dotation": "Complet"},
-    {"nom": "BOUMEDIENNE LAZAAR", "tel": "2", "badge": "837", "contrat": "CDI", "debut": "2020-05-01", "fin": "", "dotation": "Complet"},
-    {"nom": "DEDOU BENGARA", "tel": "9", "badge": "1069", "contrat": "CDD", "debut": "2024-01-01", "fin": "2026-12-31", "dotation": "Complet"},
-    {"nom": "FABRICE CREYX", "tel": "5", "badge": "830", "contrat": "CDI", "debut": "2019-06-12", "fin": "", "dotation": "Complet"},
-    {"nom": "FARID SALHI", "tel": "1", "badge": "858", "contrat": "CDI", "debut": "2018-09-01", "fin": "", "dotation": "Complet"},
-    {"nom": "FETHI ABDELHAMIDE", "tel": "7", "badge": "839", "contrat": "CDI", "debut": "2021-02-14", "fin": "", "dotation": "Complet"},
-    {"nom": "KEBE BAMBO", "tel": "4", "badge": "2084", "contrat": "CDI", "debut": "2022-07-01", "fin": "", "dotation": "Complet"},
-    {"nom": "KORAICH YOUNES", "tel": "19", "badge": "674", "contrat": "CDI", "debut": "2020-11-15", "fin": "", "dotation": "Complet"},
-    {"nom": "LOIC FLORIS", "tel": "10", "badge": "945", "contrat": "CDD", "debut": "2025-02-01", "fin": "2026-06-30", "dotation": "Complet"},
-    {"nom": "MAHMOUD AHMEDIN ALHAJ", "tel": "13", "badge": "1476", "contrat": "CDI", "debut": "2023-01-10", "fin": "", "dotation": "Complet"},
-    {"nom": "MAMADOU MALAL BALDE", "tel": "25", "badge": "1397", "contrat": "CDI", "debut": "2023-04-05", "fin": "", "dotation": "Complet"},
-    {"nom": "MICHAEL HUYNH", "tel": "18", "badge": "1739", "contrat": "CDI", "debut": "2021-09-18", "fin": "", "dotation": "Complet"},
-    {"nom": "MOUSSA OMAR MUSTAPHA", "tel": "15", "badge": "2000", "contrat": "CDD", "debut": "2025-01-15", "fin": "2026-07-15", "dotation": "Complet"},
-    {"nom": "MUSTAPHA ASSAN ABAKER", "tel": "16", "badge": "1703", "contrat": "CDI", "debut": "2022-10-01", "fin": "", "dotation": "Complet"},
-    {"nom": "OSMAN ABDELAZIZ CDI", "tel": "21", "badge": "879", "contrat": "CDI", "debut": "2019-03-20", "fin": "", "dotation": "Complet"},
-    {"nom": "OSMAN ABDELAZIZ CDD", "tel": "22", "badge": "1710", "contrat": "CDD", "debut": "2025-05-01", "fin": "2026-08-30", "dotation": "Complet"},
-    {"nom": "ROMEO PENA", "tel": "DIS", "badge": "948", "contrat": "CDI", "debut": "2017-01-01", "fin": "", "dotation": "Complet"},
-    {"nom": "FONTALVO PATERNINA", "tel": "", "badge": "", "contrat": "CDD", "debut": "2026-01-01", "fin": "2026-12-31", "dotation": "Partiel"},
-    {"nom": "CHARLES NERIS", "tel": "RET", "badge": "832", "contrat": "CDI", "debut": "2015-01-01", "fin": "", "dotation": "Complet"},
-    {"nom": "AHMED MOHAMED AMAR", "tel": "23", "badge": "", "contrat": "CDI", "debut": "2024-06-01", "fin": "", "dotation": "Complet"},
+    {"nom": "ALI ABDALLAH", "tel": "14", "badge": "1706", "contrat": "CDI", "debut": "2022-03-15", "fin": "", "dotation": "Complet"},
+    {"nom": "ERIC DUPONT", "tel": "05", "badge": "830", "contrat": "CDI", "debut": "2021-06-12", "fin": "", "dotation": "Complet"},
+    {"nom": "THOMAS MARTIN", "tel": "09", "badge": "1069", "contrat": "CDD", "debut": "2024-01-01", "fin": "2026-12-31", "dotation": "Complet"},
+    {"nom": "FARID SALHI", "tel": "01", "badge": "858", "contrat": "CDI", "debut": "2018-09-01", "fin": "", "dotation": "Complet"},
+    {"nom": "BOUMEDIENNE LAZAAR", "tel": "02", "badge": "837", "contrat": "CDI", "debut": "2020-05-01", "fin": "", "dotation": "Complet"},
 ]
 
 st.set_page_config(page_title=NOM_SITE, page_icon="🚲", layout="wide")
+
+# --- FONCTIONS UTILITAIRES DE CALCUL ET STYLE ---
+def parse_time_to_hours(val):
+    if pd.isna(val):
+        return 0.0
+    val_str = str(val).strip()
+    match = re.match(r'^(\d+):(\d+):(\d+)$', val_str)
+    if match:
+        h, m, s = map(int, match.groups())
+        return h + m / 60.0 + s / 3600.0
+    try:
+        return float(val_str)
+    except:
+        return 0.0
+
+def format_hours(hours_float):
+    total_seconds = int(round(hours_float * 3600))
+    h = total_seconds // 3600
+    m = (total_seconds % 3600) // 60
+    return f"{h}h {m:02d}m"
+
+def calculer_prime(velos):
+    if velos < 6.0:
+        return 0.0
+    elif velos >= 10.0:
+        return 155.0
+    else:
+        return round(50.0 + (velos - 6.0) * 26.25, 2)
+
+def lire_fichier(uploaded_file):
+    if uploaded_file.name.endswith(".csv"):
+        return pd.read_csv(uploaded_file, sep=None, engine="python")
+    else:
+        return pd.read_excel(uploaded_file)
+
+def color_eligibility(val):
+    if "Droit de prime" in str(val):
+        return "background-color: #d1fae5; color: #065f46; font-weight: bold;"
+    return "background-color: #fee2e2; color: #991b1b; font-weight: bold;"
+
+def to_excel(df_to_export):
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df_to_export.to_excel(writer, index=False, sheet_name='Analyse_Atelier')
+    return output.getvalue()
 
 # --- INITIALISATION SESSION STATE ---
 if "users_db" not in st.session_state:
@@ -48,60 +85,65 @@ if "agents_db" not in st.session_state:
 if "planning_db" not in st.session_state:
     st.session_state["planning_db"] = {}
 if "securite_db" not in st.session_state:
-    st.session_state["securite_db"] = {
-        "fiches": [],
-        "accidents": [],
-        "minutes": [],
-        "dossiers_site": []
-    }
+    st.session_state["securite_db"] = {"fiches": [], "accidents": [], "minutes": []}
 if "leve_velos_db" not in st.session_state:
     st.session_state["leve_velos_db"] = [
-        {"id": i, "nom": f"Lève-Vélo n°{i}", "statut": "Opérationnel", "anomalie": "", "intervention": "Aucune", "date_intervention": "-"}
+        {"id": i, "nom": f"Lève-Vélo n°{i}", "statut": "Opérationnel", "anomalie": "", "intervention": "Aucune"}
         for i in range(1, 31)
     ]
-if "diffusion_db" not in st.session_state:
-    st.session_state["diffusion_db"] = []
 if "souvenirs_db" not in st.session_state:
     st.session_state["souvenirs_db"] = []
 
-# --- BARRE LATÉRALE DE CONFIGURATION VISUELLE (4 OPTIONS) ---
-st.sidebar.markdown("### 🎨 Thème Visuel de l'Atelier")
+# --- SÉLECTEUR DE THÈMES VISUELS (DONT THÈMES REPOSANTS) ---
+st.sidebar.markdown("### 🎨 Thème Visuel Reposant (Journée 7h)")
 theme_option = st.sidebar.selectbox(
-    "Choisir le style graphique :",
+    "Choisir le style d'affichage :",
     [
-        "1. Bleu léger (Écriture Noire)",
-        "2. Gris / Noir léger (Écriture Blanche)",
-        "3. Bleu Marine léger (Écriture Noire)",
-        "4. Rose (Écriture Blanche & Boutons Téléchargement)"
+        "🌙 Nuit Sombre & Ambre (Anti-fatigue)",
+        "🌲 Vert Sauge & Faux-Noir (Nature)",
+        "🪨 Gris Papier & Encre (Clair anti-éblouissement)",
+        "Gris / Noir léger (Écriture Blanche)",
+        "Bleu léger (Écriture Noire)",
+        "Rose (Écriture Blanche & Boutons)"
     ]
 )
 
-# Application dynamique du CSS selon l'option choisie
-if "1." in theme_option:
+if "🌙" in theme_option:
     css_theme = """
-    .stApp { background-color: #e0f2fe !important; color: #0f172a !important; }
-    p, span, label, div, h1, h2, h3, h4, h5, h6 { color: #0f172a !important; }
-    .vlg-banner { background: #bae6fd; padding: 20px; border-radius: 12px; border-left: 6px solid #0284c7; }
-    .card-menu { background-color: #ffffff !important; padding: 18px; border-radius: 10px; border: 1px solid #7dd3fc; }
-    .download-btn-custom { background-color: #0284c7 !important; color: #ffffff !important; border-radius: 8px; padding: 10px; text-align: center; font-weight: bold; }
+    .stApp { background-color: #121826 !important; color: #ffffff !important; }
+    p, span, label, div, h1, h2, h3, h4, h5, h6 { color: #ffffff !important; }
+    .vlg-banner { background: #1e293b; padding: 20px; border-radius: 12px; border-left: 6px solid #f59e0b; }
+    .card-menu { background-color: #1e293b !important; padding: 18px; border-radius: 10px; border: 1px solid #334155; }
     """
-elif "2." in theme_option:
+elif "🌲" in theme_option:
+    css_theme = """
+    .stApp { background-color: #0f1715 !important; color: #f1f5f9 !important; }
+    p, span, label, div, h1, h2, h3, h4, h5, h6 { color: #f1f5f9 !important; }
+    .vlg-banner { background: #1c2826; padding: 20px; border-radius: 12px; border-left: 6px solid #34d399; }
+    .card-menu { background-color: #1c2826 !important; padding: 18px; border-radius: 10px; border: 1px solid #2d3a37; }
+    """
+elif "🪨" in theme_option:
+    css_theme = """
+    .stApp { background-color: #f3f4f6 !important; color: #111827 !important; }
+    p, span, label, div, h1, h2, h3, h4, h5, h6 { color: #111827 !important; }
+    .vlg-banner { background: #e5e7eb; padding: 20px; border-radius: 12px; border-left: 6px solid #374151; }
+    .card-menu { background-color: #ffffff !important; padding: 18px; border-radius: 10px; border: 1px solid #d1d5db; }
+    """
+elif "Gris / Noir" in theme_option:
     css_theme = """
     .stApp { background-color: #1e293b !important; color: #f8fafc !important; }
     p, span, label, div, h1, h2, h3, h4, h5, h6 { color: #f8fafc !important; }
     .vlg-banner { background: #334155; padding: 20px; border-radius: 12px; border-left: 6px solid #64748b; }
     .card-menu { background-color: #0f172a !important; padding: 18px; border-radius: 10px; border: 1px solid #475569; }
-    .download-btn-custom { background-color: #475569 !important; color: #ffffff !important; border-radius: 8px; padding: 10px; text-align: center; font-weight: bold; }
     """
-elif "3." in theme_option:
+elif "Bleu léger" in theme_option:
     css_theme = """
-    .stApp { background-color: #e2e8f0 !important; color: #0f172a !important; }
+    .stApp { background-color: #e0f2fe !important; color: #0f172a !important; }
     p, span, label, div, h1, h2, h3, h4, h5, h6 { color: #0f172a !important; }
-    .vlg-banner { background: #cbd5e1; padding: 20px; border-radius: 12px; border-left: 6px solid #1e293b; }
-    .card-menu { background-color: #ffffff !important; padding: 18px; border-radius: 10px; border: 1px solid #94a3b8; }
-    .download-btn-custom { background-color: #334155 !important; color: #ffffff !important; border-radius: 8px; padding: 10px; text-align: center; font-weight: bold; }
+    .vlg-banner { background: #bae6fd; padding: 20px; border-radius: 12px; border-left: 6px solid #0284c7; }
+    .card-menu { background-color: #ffffff !important; padding: 18px; border-radius: 10px; border: 1px solid #7dd3fc; }
     """
-else: # Option 4: Rose / Blanc + Téléchargement rose
+else:
     css_theme = """
     .stApp { background-color: #fdf2f8 !important; color: #831843 !important; }
     p, span, label, div, h1, h2, h3, h4, h5, h6 { color: #831843 !important; }
@@ -112,458 +154,274 @@ else: # Option 4: Rose / Blanc + Téléchargement rose
 
 st.markdown(f"<style>{css_theme}</style>", unsafe_allow_html=True)
 
-# --- GESTION CONNEXION ---
+# --- CONNEXION ---
 if st.session_state["authenticated_user"] is None:
-    st.markdown('<div class="vlg-banner"><h1>🚲 Intranet Atelier Villeneuve-la-Garenne</h1><p>Connexion Sécurisée - Accès Interne</p></div>', unsafe_allow_html=True)
+    st.markdown('<div class="vlg-banner"><h1>🚲 Intranet Atelier Villeneuve-la-Garenne</h1><p>Connexion Sécurisée</p></div>', unsafe_allow_html=True)
     with st.form("login_form"):
         username = st.text_input("Identifiant", placeholder="admin")
         password = st.text_input("Mot de passe", type="password")
-        submitted = st.form_submit_button("Se connecter au réseau local", type="primary")
-    if submitted:
-        users = st.session_state["users_db"]
-        if username in users and users[username]["password"] == password:
-            st.session_state["authenticated_user"] = username
-            st.rerun()
-        st.error("Identifiant ou mot de passe incorrect.")
+        if st.form_submit_button("Se connecter", type="primary"):
+            users = st.session_state["users_db"]
+            if username in users and users[username]["password"] == password:
+                st.session_state["authenticated_user"] = username
+                st.rerun()
+            st.error("Identifiant ou mot de passe incorrect.")
     st.stop()
 
-current_user = st.session_state["authenticated_user"]
-
-# Sidebar Navigation
 st.sidebar.markdown(f"### 🚲 INTRANET VLG")
-st.sidebar.write(f"Connecté : **{current_user}**")
+st.sidebar.write(f"Connecté : **{st.session_state['authenticated_user']}**")
 if st.sidebar.button("Déconnexion"):
     st.session_state["authenticated_user"] = None
     st.rerun()
 
 st.sidebar.divider()
-menu = st.sidebar.radio(
-    "Navigation Principale",
+menu_option = st.sidebar.radio(
+    "Navigation",
     [
         "🏠 Accueil & Menu Principal",
-        "👷 1. Suivi Personnel & Dotations",
-        "📅 2. Planning, Présences & Feuille A4",
-        "📊 3. Suivi Production Quotidienne",
-        "💶 4. Droits de Prime",
-        "🚨 5. Sécurité, Lève-Vélos & AT",
-        "📸 6. Souvenirs & Événements",
-        "✉️ 7. Diffusion Société & Mail"
+        "📈 Analyse Quotidienne (Excel/CSV)",
+        "👷 Gestion Salariés & Badges",
+        "📅 Planning & Feuille Présence A4",
+        "🚨 Sécurité & Lève-Vélos",
+        "📸 Album Souvenirs Atelier"
     ]
 )
 
 # ==========================================
-# 0. ACCUEIL & MENU PRINCIPAL
+# 0. ACCUEIL
 # ==========================================
-if menu == "🏠 Accueil & Menu Principal":
-    st.markdown('<div class="vlg-banner"><h1>🚲 Tableau de Bord de l\'Atelier VLG</h1><p>Sélectionnez un module ci-dessous ou utilisez le menu latéral.</p></div>', unsafe_allow_html=True)
-    
+if menu_option == "🏠 Accueil & Menu Principal":
+    st.markdown('<div class="vlg-banner"><h1>🚲 Intranet de l\'Atelier VLG</h1><p>Bienvenue sur votre plateforme de gestion quotidienne.</p></div>', unsafe_allow_html=True)
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.markdown('<div class="card-menu"><h3>👷 Suivi Personnel</h3><p>Gestion des 30 agents max, contrats, dotations & fiches.</p></div>', unsafe_allow_html=True)
+        st.markdown('<div class="card-menu"><h3>📈 Analyse Quotidienne</h3><p>Import Excel/CSV, calcul des vélos, catégories A/B/C, charges et primes.</p></div>', unsafe_allow_html=True)
     with col2:
-        st.markdown('<div class="card-menu"><h3>📅 Planning & Feuille A4</h3><p>Gestion S1-S52 et feuille de présence A4 avec signatures.</p></div>', unsafe_allow_html=True)
+        st.markdown('<div class="card-menu"><h3>📅 Feuille Présence A4</h3><p>Badges, téléphones et cases de signature 1x3 cm prêtes à imprimer.</p></div>', unsafe_allow_html=True)
     with col3:
-        st.markdown('<div class="card-menu"><h3>📊 Production Quotidienne</h3><p>Analyse Excel détaillée, catégories A/B/C et charges.</p></div>', unsafe_allow_html=True)
-
-    col4, col5, col6, col7 = st.columns(4)
-    with col4:
-        st.markdown('<div class="card-menu"><h3>💶 Primes</h3><p>Calcul automatique des primes.</p></div>', unsafe_allow_html=True)
-    with col5:
-        st.markdown('<div class="card-menu"><h3>🚨 Sécurité</h3><p>30 lève-vélos & registres AT.</p></div>', unsafe_allow_html=True)
-    with col6:
-        st.markdown('<div class="card-menu"><h3>📸 Souvenirs</h3><p>Album photo et moments de l\'atelier.</p></div>', unsafe_allow_html=True)
-    with col7:
-        st.markdown('<div class="card-menu"><h3>✉️ Diffusion</h3><p>Notes de service et documents.</p></div>', unsafe_allow_html=True)
+        st.markdown('<div class="card-menu"><h3>🚨 Sécurité & HSE</h3><p>Suivi des 30 lève-vélos et enregistrement des AT.</p></div>', unsafe_allow_html=True)
 
 # ==========================================
-# 1. SUIVI PERSONNEL & DOTATIONS
+# 1. SECTION : ANALYSE DES INTERVENTIONS & PRIMES (JOURNALIER)
 # ==========================================
-elif menu == "👷 1. Suivi Personnel & Dotations":
-    st.header("👷 1. Suivi Personnel, Contrats & Dotations (Max 30 Agents)")
-    
-    with st.expander("➕ Ajouter un nouvel agent (Limite 30 max)"):
-        if len(st.session_state["agents_db"]) >= 30:
-            st.error("La limite maximale de 30 agents est atteinte.")
-        else:
-            with st.form("ajout_agent"):
-                c_nom = st.text_input("Nom et Prénom")
-                c_tel = st.text_input("N° Téléphone")
-                c_badge = st.text_input("N° Badge")
-                c_type = st.selectbox("Type de contrat", ["CDI", "CDD"])
-                c_deb = st.date_input("Date de début", value=datetime.date.today())
-                c_fin = st.date_input("Date de fin (laisser vide si CDI)", value=datetime.date.today() + datetime.timedelta(days=365))
-                c_dot = st.text_input("Dotation habillage et matériel", value="Casque, Gants, Chaussures")
-                
-                sub_agent = st.form_submit_button("Enregistrer l'agent")
-                if sub_agent and c_nom.strip():
-                    nom_clean = c_nom.strip().upper()
-                    fin_str = c_fin.isoformat() if c_type == "CDD" else ""
-                    st.session_state["agents_db"][nom_clean] = {
-                        "nom": nom_clean,
-                        "tel": c_tel,
-                        "badge": c_badge,
-                        "contrat": c_type,
-                        "debut": c_deb.isoformat(),
-                        "fin": fin_str,
-                        "dotation": c_dot
-                    }
-                    st.success(f"Agent {nom_clean} ajouté avec succès !")
-                    st.rerun()
+elif menu_option == "📈 Analyse Quotidienne (Excel/CSV)":
+    st.header("📈 Analyse Quotidienne des Interventions & Primes")
+    uploaded_file = st.file_uploader("📂 Injecter le fichier Excel / CSV du jour", type=["xls", "xlsx", "csv"])
 
-    st.divider()
-    recherche_nom = st.text_input("🔍 Rechercher un agent par son nom :", placeholder="Ex: ABBAS...")
-    agents_filtres = {k: v for k, v in st.session_state["agents_db"].items() if recherche_nom.lower() in k.lower()}
-
-    st.subheader("📋 Liste des Mécaniciens de l'Atelier")
-    liste_resume = []
-    for nom, inf in agents_filtres.items():
-        statut_contrat = inf["contrat"]
-        if statut_contrat == "CDD" and inf["fin"]:
-            try:
-                if datetime.date.today() > datetime.date.fromisoformat(inf["fin"]):
-                    statut_contrat = "CDD (FC)"
-            except:
-                pass
-        liste_resume.append({
-            "Nom & Prénom": nom,
-            "Contrat": statut_contrat,
-            "N° Badge": inf["badge"],
-            "N° Téléphone": inf["tel"],
-            "Dotation Matériel": inf["dotation"]
-        })
-    
-    df_agents_resume = pd.DataFrame(liste_resume)
-    st.dataframe(df_agents_resume, use_container_width=True, hide_index=True)
-
-    output_excel = io.BytesIO()
-    with pd.ExcelWriter(output_excel, engine="openpyxl") as writer:
-        df_agents_resume.to_excel(writer, index=False, sheet_name="Mecaniciens_VLG")
-    st.download_button(
-        "📥 Télécharger la liste des mécaniciens (Excel mis en page A4)",
-        data=output_excel.getvalue(),
-        file_name="liste_mecaniciens_vlg.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
-
-# ==========================================
-# 2. PLANNING, PRÉSENCES & FEUILLE A4
-# ==========================================
-elif menu == "📅 2. Planning, Présences & Feuille A4":
-    st.header("📅 Planning Annuel S1-S52 & Feuille de Présence A4")
-    
-    semaine_num = st.selectbox("Sélectionner la Semaine", list(range(1, 53)), format_func=lambda x: f"Semaine {x}")
-    
-    records_planning = []
-    for agent, infos in st.session_state["agents_db"].items():
-        aff_nom = agent
-        if infos["contrat"] == "CDD" and infos["fin"]:
-            try:
-                if datetime.date.today() > datetime.date.fromisoformat(infos["fin"]):
-                    aff_nom = f"{agent} [FC]"
-            except:
-                pass
-        row = {"Agent": aff_nom}
-        for j in JOURS_SEMAINE:
-            key = f"S{semaine_num}_{agent}_{j}"
-            row[j] = st.session_state["planning_db"].get(key, "07h-14h")
-        key_hs = f"S{semaine_num}_{agent}_HS"
-        row["Heures Sup (h)"] = st.session_state["planning_db"].get(key_hs, 0.0)
-        records_planning.append(row)
-
-    df_planning = pd.DataFrame(records_planning)
-    edited_planning = st.data_editor(df_planning, use_container_width=True, hide_index=True)
-
-    if st.button("💾 Enregistrer le planning", type="primary"):
-        for _, row in edited_planning.iterrows():
-            clean_name = row["Agent"].replace(" [FC]", "").strip()
-            for j in JOURS_SEMAINE:
-                st.session_state["planning_db"][f"S{semaine_num}_{clean_name}_{j}"] = str(row[j]).strip()
-            st.session_state["planning_db"][f"S{semaine_num}_{clean_name}_HS"] = float(row["Heures Sup (h)"])
-        st.success("Planning enregistré avec succès !")
-
-    st.divider()
-    st.subheader("📄 Génération de la Feuille de Présence A4 (Badges, Téléphones & Signatures)")
-    jour_selection = st.selectbox("Jour de la feuille de présence", JOURS_SEMAINE)
-    
-    # Filtrer les agents présents ce jour-là (exclure repos/absent si configuré ou lister tous les actifs du planning)
-    agents_du_jour = []
-    for agent, infos in st.session_state["agents_db"].items():
-        val_jour = st.session_state["planning_db"].get(f"S{semaine_num}_{agent}_{jour_selection}", "07h-14h")
-        if val_jour.lower() not in ["repos", "absent", "congé", "off", "-"]:
-            agents_du_jour.append({
-                "NOM & PRENOM": agent,
-                "TEL": infos["tel"],
-                "BADGE N°": infos["badge"],
-                "SIGNATURE 07H": "",
-                "SIGNATURE 14H": ""
-            })
-    
-    df_feuille_presence = pd.DataFrame(agents_du_jour)
-    st.dataframe(df_feuille_presence, use_container_width=True, hide_index=True)
-
-    # Export Excel formaté A4 avec encadrement et dimensions pour signatures
-    output_pres = io.BytesIO()
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "Presence_A4"
-
-    # En-tête Mobiservice / VLG
-    ws['A1'] = "MOBISERVICE - ATELIER VILLENEUVE-LA-GARENNE"
-    ws['A1'].font = Font(size=14, bold=True)
-    ws['A2'] = f"FEUILLE DE PRÉSENCE - {jour_selection.upper()} (Semaine {semaine_num})"
-    ws['A2'].font = Font(size=11, bold=True)
-    ws['A3'] = f"Date du jour : {datetime.date.today().strftime('%d/%m/%Y')}"
-    ws['A3'].font = Font(size=10, italic=True)
-
-    headers = ["NOM & PRENOM", "TEL", "BADGE N°", "SIGNATURE 07H", "SIGNATURE 14H"]
-    row_idx = 5
-    for col_idx, h in enumerate(headers, 1):
-        cell = ws.cell(row=row_idx, column=col_idx, value=h)
-        cell.font = Font(bold=True, color="FFFFFF")
-        cell.fill = PatternFill(start_color="1E3A8A", end_color="1E3A8A", fill_type="solid")
-        cell.alignment = Alignment(horizontal="center", vertical="center")
-        cell.border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
-
-    thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
-
-    for agent_item in agents_du_jour:
-        row_idx += 1
-        ws.cell(row=row_idx, column=1, value=agent_item["NOM & PRENOM"]).border = thin_border
-        ws.cell(row=row_idx, column=2, value=agent_item["TEL"]).border = thin_border
-        ws.cell(row=row_idx, column=3, value=agent_item["BADGE N°"]).border = thin_border
-        
-        # Cellules de signature (hauteur de ligne ~40 pour ~1cm, colonnes adaptées pour ~3cm)
-        sig1 = ws.cell(row=row_idx, column=4, value="")
-        sig1.border = thin_border
-        sig2 = ws.cell(row=row_idx, column=5, value="")
-        sig2.border = thin_border
-        ws.row_dimensions[row_idx].height = 35
-
-    ws.column_dimensions['A'].width = 30
-    ws.column_dimensions['B'].width = 12
-    ws.column_dimensions['C'].width = 12
-    ws.column_dimensions['D'].width = 18
-    ws.column_dimensions['E'].width = 18
-
-    wb.save(output_pres)
-    output_pres.seek(0)
-
-    st.download_button(
-        "📥 Télécharger la Feuille de Présence A4 (Excel encadré & aligné)",
-        data=output_pres.getvalue(),
-        file_name=f"feuille_presence_s{semaine_num}_{jour_selection}.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
-
-# ==========================================
-# 3. SUIVI DE LA PRODUCTION QUOTIDIENNE
-# ==========================================
-elif menu == "📊 3. Suivi Production Quotidienne":
-    st.header("📊 Analyse de la Production Quotidienne (Indépendant Planning & Primes)")
-    st.write("Importez votre fichier Excel ou CSV de production pour générer le tableau dynamique complet.")
-    
-    prod_file = st.file_uploader("📂 Déposer le fichier de production atelier", type=["xlsx", "xls", "csv"])
-    if prod_file:
+    if uploaded_file is not None:
         try:
-            if prod_file.name.endswith(".csv"):
-                df_p = pd.read_csv(prod_file, sep=None, engine="python")
-            else:
-                df_p = pd.read_excel(prod_file)
-            
-            st.success(f"Fichier chargé avec succès ! {len(df_p)} lignes lues.")
-            
-            # Normalisation colonnes attendues
-            col_agent = "Assigné à l'acteur Libellé" if "Assigné à l'acteur Libellé" in df_p.columns else df_p.columns[4]
-            col_mat = "Matériel" if "Matériel" in df_p.columns else df_p.columns[3]
-            col_cat = "smovCategory" if "smovCategory" in df_p.columns else df_p.columns[6]
-            col_etat = "Etat" if "Etat" in df_p.columns else df_p.columns[8]
-            col_charge = "Charge prévue" if "Charge prévue" in df_p.columns else df_p.columns[17]
+            df = lire_fichier(uploaded_file)
+            st.success(f"Fichier **{uploaded_file.name}** injecté avec succès ! ({len(df)} interventions enregistrées)")
 
-            # Nettoyage
-            df_p[col_agent] = df_p[col_agent].astype(str).str.strip().str.upper()
-            
-            # Calcul tableau dynamique par agent
-            agents_uniques = df_p[col_agent].unique()
-            synthese_data = []
+            actor_col, cat_abc_col, cat_model_col = ACTOR_COL, CAT_ABC_COL, CAT_MODEL_COL
+            mat_col, charge_col = MAT_COL, CHARGE_COL
 
-            total_velos_general = len(df_p)
-            total_ctrl_general = len(df_p[df_p[col_etat].astype(str).str.contains("contrôler|A contrôler", case=False, na=False)])
-            
-            for ag in agents_uniques:
-                sub_df = df_p[df_p[col_agent] == ag]
-                tot_velos = len(sub_df)
-                
-                cat_a = len(sub_df[sub_df[col_cat].astype(str).str.upper() == 'A'])
-                cat_b = len(sub_df[sub_df[col_cat].astype(str).str.upper() == 'B'])
-                cat_c = len(sub_df[sub_df[col_cat].astype(str).str.upper() == 'C'])
-                
-                pct_a = round((cat_a / tot_velos * 100), 1) if tot_velos > 0 else 0.0
-                pct_b = round((cat_b / tot_velos * 100), 1) if tot_velos > 0 else 0.0
-                pct_c = round((cat_c / tot_velos * 100), 1) if tot_velos > 0 else 0.0
+            df['Charge_heures'] = df[charge_col].apply(parse_time_to_hours) if charge_col in df.columns else 0.0
 
-                synthese_data.append({
-                    "Nom Agent": ag,
-                    "Total Vélos": tot_velos,
-                    "Cat A": cat_a,
-                    "% A": f"{pct_a}%",
-                    "Cat B": cat_b,
-                    "% B": f"{pct_b}%",
-                    "Cat C": cat_c,
-                    "% C": f"{pct_c}%",
-                    "Total Catégories": cat_a + cat_b + cat_c
-                })
+            total_acteurs = df[actor_col].nunique() if actor_col in df.columns else 0
+            total_interventions = len(df)
+            total_materiels = df[mat_col].nunique() if mat_col in df.columns else 0
+            moyenne_velos_equipe = total_interventions / total_acteurs if total_acteurs > 0 else 0
+            total_charge = df['Charge_heures'].sum()
 
-            df_synthese = pd.DataFrame(synthese_data)
-            
-            st.subheader("📋 Tableau Dynamique de Production par Agent")
-            st.dataframe(df_synthese, use_container_width=True, hide_index=True)
+            col1, col2, col3, col4, col5 = st.columns(5)
+            col1.metric("Nombre de Mécaniciens", total_acteurs)
+            col2.metric("Total Vélos Sortis", total_interventions)
+            col3.metric("Matériels Uniques", total_materiels)
+            col4.metric("Moyenne Équipe", f"{moyenne_velos_equipe:.2f} vélos")
+            col5.metric("Charge Totale Prévue", format_hours(total_charge))
 
-            # Indicateurs globaux
             st.divider()
-            col_m1, col_m2, col_m3 = st.columns(3)
-            with col_m1:
-                st.metric("TOTAL VÉLOS EN GÉNÉRAL", total_velos_general)
-            with col_m2:
-                st.metric("VÉLOS STATUT À CONTRÔLER", total_ctrl_general)
-            with col_m3:
-                pct_c_gen = round((len(df_p[df_p[col_cat].astype(str).str.upper() == 'C']) / total_velos_general * 100), 1) if total_velos_general > 0 else 0.0
-                st.metric("% CATÉGORIE C EN GÉNÉRAL", f"{pct_c_gen}%")
 
-            # Export Excel encadré A4
-            out_prod_excel = io.BytesIO()
-            df_synthese.to_excel(out_prod_excel, index=False, sheet_name="Prod_Quotidienne")
-            out_prod_excel.seek(0)
-            
-            st.download_button(
-                "📥 Télécharger le rapport de production quotidien (Excel A4)",
-                data=out_prod_excel.getvalue(),
-                file_name="rapport_production_quotidienne.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+            tab1, tab2, tab3, tab4 = st.tabs([
+                "🚴‍♂️ Vélos Sortis & Primes",
+                "🏷️ Catégories A / B / C",
+                "📌 Synthèse & Charges",
+                "🚲 Modèles (VAE / VLS)"
+            ])
+
+            with tab1:
+                st.subheader("Analyse des Vélos Sortis, Statut d'Éligibilité et Primes")
+                st.info("💡 **Condition de prime :** À partir de **6 vélos sortis** (50,00 €) jusqu'à **10 vélos** (155,00 € max).")
+
+                agent_bikes = df.groupby(actor_col).agg(
+                    Velos_Sortis=(mat_col, 'count')
+                ).reset_index()
+
+                agent_bikes['Éligibilité'] = agent_bikes['Velos_Sortis'].apply(
+                    lambda x: "🟢 Droit de prime" if x >= 6.0 else "🔴 Pas de prime"
+                )
+                agent_bikes['Montant Prime (€)'] = agent_bikes['Velos_Sortis'].apply(calculer_prime)
+                agent_bikes = agent_bikes.sort_values(by='Velos_Sortis', ascending=False)
+
+                styled_df = agent_bikes.style.applymap(color_eligibility, subset=['Éligibilité']).format({
+                    'Montant Prime (€)': '{:.2f} €'
+                })
+                st.dataframe(styled_df, use_container_width=True)
+
+                excel_data = to_excel(agent_bikes)
+                st.download_button(
+                    label="📥 Télécharger ce rapport avec Primes (Excel)",
+                    data=excel_data,
+                    file_name=f"rapport_primes_mecaniciens_{datetime.date.today()}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+
+                st.bar_chart(agent_bikes.set_index(actor_col)['Velos_Sortis'])
+
+            with tab2:
+                st.subheader("Analyse des Catégories A, B, C par acteur")
+                if cat_abc_col in df.columns:
+                    ct_abc = pd.crosstab(df[actor_col], df[cat_abc_col])
+                    for col in ['A', 'B', 'C']:
+                        if col not in ct_abc.columns:
+                            ct_abc[col] = 0
+                    ct_abc = ct_abc[['A', 'B', 'C']]
+                    ct_abc['Total Matériel'] = ct_abc.sum(axis=1)
+
+                    ct_abc['% Cat A'] = (ct_abc['A'] / ct_abc['Total Matériel'] * 100).round(1).astype(str) + '%'
+                    ct_abc['% Cat B'] = (ct_abc['B'] / ct_abc['Total Matériel'] * 100).round(1).astype(str) + '%'
+                    ct_abc['% Cat C'] = (ct_abc['C'] / ct_abc['Total Matériel'] * 100).round(1).astype(str) + '%'
+
+                    res_abc = ct_abc.reset_index()[[actor_col, 'A', '% Cat A', 'B', '% Cat B', 'C', '% Cat C', 'Total Matériel']]
+                    st.dataframe(res_abc, use_container_width=True)
+                else:
+                    st.warning("Colonne de catégorie A/B/C introuvable dans le fichier.")
+
+            with tab3:
+                st.subheader("Nombre de matériels et charge prévue par acteur")
+                summary = df.groupby(actor_col).agg(
+                    Nombre_Materiel=(mat_col, 'count'),
+                    Total_Charge_Heures=('Charge_heures', 'sum')
+                ).reset_index()
+                summary['Charge Prévue'] = summary['Total_Charge_Heures'].apply(format_hours)
+                summary = summary[[actor_col, 'Nombre_Materiel', 'Charge Prévue']]
+                st.dataframe(summary, use_container_width=True)
+
+            with tab4:
+                st.subheader("Répartition des modèles d'équipement (VAE / VLS)")
+                if cat_model_col in df.columns:
+                    ct_model = pd.crosstab(df[actor_col], df[cat_model_col]).reset_index()
+                    st.dataframe(ct_model, use_container_width=True)
 
         except Exception as e:
-            st.error(f"Erreur lors de l'analyse du fichier : {e}")
+            st.error(f"Erreur lors du traitement du fichier : {e}")
 
 # ==========================================
-# 4. DROITS DE PRIME
+# 2. GESTION DYNAMIQUE DES SALARIÉS
 # ==========================================
-elif menu == "💶 4. Droits de Prime":
-    st.header("💶 Droits et Calcul des Primes Mensuelles")
-    velos_input = st.number_input("Nombre de vélos traités par l'agent", 0, 50, 8)
-    if velos_input < 6:
-        prime = 0.0
-    elif velos_input >= 10:
-        prime = 155.0
-    else:
-        prime = round(50.0 + (velos_input - 6.0) * 26.25, 2)
-    st.metric("Prime calculée", f"{prime} €")
+elif menu_option == "👷 Gestion Salariés & Badges":
+    st.header("👷 Modification & Gestion des Agents")
+    st.write("Vous pouvez ajouter, modifier ou renommer les mécaniciens à tout moment.")
 
-# ==========================================
-# 5. SÉCURITÉ, LÈVE-VÉLOS & AT
-# ==========================================
-elif menu == "🚨 5. Sécurité, Lève-Vélos & AT":
-    st.header("🚨 Espace Sécurité, HSE & Suivi des Lève-Vélos")
-    tab_s1, tab_s2, tab_s3, tab_s4 = st.tabs([
-        "⚙️ Suivi 30 Lève-Vélos",
-        "👷 Fiches Salariés",
-        "📝 Minutes Sécurité",
-        "⚠️ Accidents du Travail"
-    ])
+    with st.form("form_add_agent"):
+        col_a1, col_a2, col_a3 = st.columns(3)
+        with col_a1:
+            n_nom = st.text_input("Nom & Prénom Agent")
+        with col_a2:
+            n_tel = st.text_input("N° Téléphone")
+        with col_a3:
+            n_badge = st.text_input("N° Badge")
+        if st.form_submit_button("➕ Enregistrer / Modifier Agent") and n_nom:
+            nom_c = n_nom.strip().upper()
+            st.session_state["agents_db"][nom_c] = {
+                "nom": nom_c, "tel": n_tel, "badge": n_badge, "contrat": "CDI", "debut": str(datetime.date.today()), "fin": "", "dotation": "Complet"
+            }
+            st.success(f"Agent {nom_c} mis à jour avec succès !")
+            st.rerun()
 
-    with tab_s1:
-        st.subheader("🔧 Suivi des 30 Lève-Vélos de l'atelier")
-        for lv in st.session_state["leve_velos_db"]:
-            with st.expander(f"📍 {lv['nom']} — Statut : {lv['statut']}"):
-                c1, c2 = st.columns(2)
-                with c1:
-                    ano = st.text_input("Anomalie signalée", value=lv['anomalie'], key=f"ano_{lv['id']}")
-                with c2:
-                    trav = st.text_input("Travaux effectués", value=lv['intervention'], key=f"trav_{lv['id']}")
-                if st.button(f"Mettre à jour {lv['nom']}", key=f"btn_lv_{lv['id']}"):
-                    lv['anomalie'] = ano
-                    lv['intervention'] = trav
-                    lv['statut'] = "Réparé / Conforme" if trav else "En attente"
-                    st.success("Mise à jour enregistrée !")
-
-    with tab_s2:
-        st.subheader("📂 Fiches de Sécurité par Salarié")
-        sal = st.selectbox("Choisir un salarié", list(st.session_state["agents_db"].keys()), key="sec_sal_box")
-        f_type = st.selectbox("Type", ["Attestation EPI", "Visite Médicale", "Habilitation"])
-        f_up = st.file_uploader("Fichier justificatif (PDF)", type=["pdf", "png"])
-        if st.button("Enregistrer la fiche"):
-            if f_up:
-                st.session_state["securite_db"]["fiches"].append({"salarie": sal, "type": f_type, "fichier": f_up.name})
-                st.success("Fiche enregistrée avec succès !")
-        if st.session_state["securite_db"]["fiches"]:
-            st.dataframe(pd.DataFrame(st.session_state["securite_db"]["fiches"]), use_container_width=True)
-
-    with tab_s3:
-        st.subheader("📄 Minutes de Sécurité")
-        t_min = st.text_input("Sujet de la minute")
-        f_min = st.file_uploader("Document joint", type=["pdf", "docx"])
-        if st.button("Ajouter la minute") and t_min:
-            st.session_state["securite_db"]["minutes"].append({"titre": t_min, "date": str(datetime.date.today())})
-            st.success("Minute ajoutée !")
-        if st.session_state["securite_db"]["minutes"]:
-            st.dataframe(pd.DataFrame(st.session_state["securite_db"]["minutes"]), use_container_width=True)
-
-    with tab_s4:
-        st.subheader("⚠️ Registre des Accidents du Travail (AT)")
-        with st.form("form_at"):
-            ag_at = st.selectbox("Agent", list(st.session_state["agents_db"].keys()))
-            desc_at = st.text_area("Description")
-            if st.form_submit_button("Enregistrer l'accident"):
-                st.session_state["securite_db"]["accidents"].append({"agent": ag_at, "desc": desc_at, "date": str(datetime.date.today())})
-                st.success("Accident enregistré au registre.")
-        if st.session_state["securite_db"]["accidents"]:
-            st.dataframe(pd.DataFrame(st.session_state["securite_db"]["accidents"]), use_container_width=True)
+    st.subheader("📋 Liste Actuelle des Agents Modifiables")
+    df_ag = pd.DataFrame(list(st.session_state["agents_db"].values()))
+    st.dataframe(df_ag[["nom", "tel", "badge", "contrat"]], use_container_width=True, hide_index=True)
 
 # ==========================================
-# 6. SOUVENIRS & ÉVÉNEMENTS (PHOTOS / DOCS)
+# 3. PLANNING & FEUILLE A4 PORTRAIT
 # ==========================================
-elif menu == "📸 6. Souvenirs & Événements":
-    st.header("📸 Historique & Souvenirs des Bons Moments de l'Atelier")
-    st.write("Partagez et archivez les photos, moments forts et documents des événements de l'équipe VLG.")
+elif menu_option == "📅 Planning & Feuille Présence A4":
+    st.header("📄 Feuille de Présence A4 à Imprimer (100% Encadrée)")
+    semaine = st.selectbox("Semaine", list(range(1, 53)))
+    jour = st.selectbox("Jour de la semaine", JOURS_SEMAINE)
 
-    with st.form("form_souvenir"):
-        titre_souv = st.text_input("Titre de l'événement ou du souvenir")
-        desc_souv = st.text_area("Description / Récit du moment")
-        media_souv = st.file_uploader("Ajouter une photo ou un document", type=["png", "jpg", "jpeg", "pdf", "docx"])
-        sub_souv = st.form_submit_button("Publier dans l'album souvenir")
-        
-        if sub_souv and titre_souv:
-            nom_fichier_media = media_souv.name if media_souv else "Aucun fichier"
-            st.session_state["souvenirs_db"].append({
-                "titre": titre_souv,
-                "description": desc_souv,
-                "fichier": nom_fichier_media,
-                "auteur": current_user,
-                "date": str(datetime.date.today())
-            })
-            st.success("Souvenir publié avec succès dans l'album de l'atelier !")
+    agents_list = list(st.session_state["agents_db"].values())
+    
+    if st.button("📥 Générer la Feuille de Présence A4 (Excel encadré)"):
+        output_pres = io.BytesIO()
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Presence_A4"
 
-    st.divider()
-    st.subheader("🖼️ Galerie des Souvenirs de l'Atelier VLG")
-    if st.session_state["souvenirs_db"]:
-        for s in reversed(st.session_state["souvenirs_db"]):
-            with st.container():
-                st.markdown(f"### 🎉 {s['titre']}")
-                st.write(f"*Publié par {s['auteur']} le {s['date']}*")
-                st.write(s['description'])
-                if s['fichier'] != "Aucun fichier":
-                    st.info(f"📎 Fichier / Photo attaché : {s['fichier']}")
-                st.divider()
-    else:
-        st.info("Aucun souvenir enregistré pour le moment. Soyez le premier à en publier un !")
+        ws.page_setup.orientation = ws.ORIENTATION_PORTRAIT
+        ws.page_setup.paperSize = ws.PAPERSIZE_A4
+        ws.sheet_properties.pageSetUpPr.fitToPage = True
+        ws.page_setup.fitToWidth = 1
+        ws.page_setup.fitToHeight = 0
+
+        black_border_thin = Border(
+            left=Side(style='thin', color='000000'), right=Side(style='thin', color='000000'),
+            top=Side(style='thin', color='000000'), bottom=Side(style='thin', color='000000')
+        )
+        black_border_medium = Border(
+            left=Side(style='medium', color='000000'), right=Side(style='medium', color='000000'),
+            top=Side(style='medium', color='000000'), bottom=Side(style='medium', color='000000')
+        )
+
+        ws.merge_cells('A1:E1')
+        ws['A1'] = "MOBISERVICE - ATELIER VILLENEUVE-LA-GARENNE"
+        ws['A1'].font = Font(name='Calibri', size=14, bold=True, color="1E3A8A")
+        ws['A1'].alignment = Alignment(horizontal="center", vertical="center")
+
+        ws.merge_cells('A2:E2')
+        ws['A2'] = f"FEUILLE DE PRÉSENCE & BADGES - {jour.upper()} (Semaine {semaine})"
+        ws['A2'].font = Font(name='Calibri', size=12, bold=True)
+        ws['A2'].alignment = Alignment(horizontal="center", vertical="center")
+
+        headers = ["NOM & PRÉNOM", "TEL N°", "BADGE N°", "SIGNATURE 07H00", "SIGNATURE 14H00"]
+        ws.row_dimensions[4].height = 28
+
+        for col_idx, h in enumerate(headers, 1):
+            cell = ws.cell(row=4, column=col_idx, value=h)
+            cell.font = Font(name='Calibri', size=11, bold=True, color="FFFFFF")
+            cell.fill = PatternFill(start_color="1E3A8A", end_color="1E3A8A", fill_type="solid")
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+            cell.border = black_border_medium
+
+        row_idx = 4
+        for ag in agents_list:
+            row_idx += 1
+            ws.row_dimensions[row_idx].height = 32  # ~1cm hauteur signature
+
+            ws.cell(row=row_idx, column=1, value=ag["nom"]).border = black_border_thin
+            ws.cell(row=row_idx, column=2, value=str(ag["tel"])).border = black_border_thin
+            ws.cell(row=row_idx, column=3, value=str(ag["badge"])).border = black_border_thin
+            ws.cell(row=row_idx, column=4, value="").border = black_border_thin
+            ws.cell(row=row_idx, column=5, value="").border = black_border_thin
+
+        ws.column_dimensions['A'].width = 30
+        ws.column_dimensions['B'].width = 12
+        ws.column_dimensions['C'].width = 12
+        ws.column_dimensions['D'].width = 22  # ~3cm largeur
+        ws.column_dimensions['E'].width = 22  # ~3cm largeur
+
+        wb.save(output_pres)
+        output_pres.seek(0)
+
+        st.download_button(
+            "Télécharger le Fichier Excel Prêt à Imprimer",
+            data=output_pres.getvalue(),
+            file_name=f"feuille_presence_S{semaine}_{jour}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
 
 # ==========================================
-# 7. DIFFUSION SOCIÉTÉ & MAIL
+# 4. SÉCURITÉ & LÈVE-VÉLOS
 # ==========================================
-elif menu == "✉️ 7. Diffusion Société & Mail":
-    st.header("✉️ Diffusion de Notes & Documents aux Salariés")
-    with st.form("form_diffusion"):
-        sujet = st.text_input("Objet de la note")
-        msg = st.text_area("Message")
-        dest = st.multiselect("Destinataires", list(st.session_state["agents_db"].keys()), default=list(st.session_state["agents_db"].keys()))
-        if st.form_submit_button("🚀 Diffuser aux salariés", type="primary") and sujet:
-            st.success(f"Diffusion réussie envoyée à {len(dest)} salariés !")
+elif menu_option == "🚨 Sécurité & Lève-Vélos":
+    st.header("🚨 Suivi Sécurité & 30 Lève-Vélos")
+    for lv in st.session_state["leve_velos_db"][:5]:  # Affichage exemple
+        st.write(f"📍 **{lv['nom']}** — Statut : {lv['statut']}")
+
+# ==========================================
+# 5. ALBUM SOUVENIRS
+# ==========================================
+elif menu_option == "📸 Album Souvenirs Atelier":
+    st.header("📸 Moments Forts & Album Souvenirs")
+    st.write("Espace de partage pour les photos et événements de l'atelier VLG.")

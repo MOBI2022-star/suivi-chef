@@ -1,6 +1,6 @@
 import datetime
 import io
-import json
+import os
 import openpyxl
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
@@ -36,79 +36,6 @@ AGENTS_INITIAUX = [
 
 st.set_page_config(page_title=NOM_SITE, page_icon="🚲", layout="wide")
 
-# --- STYLE CSS AMÉLIORÉ : LISIBILITÉ & COULEURS LISIBLES ---
-st.markdown(
-    """
-<style>
-/* Fond général */
-.stApp { 
-    background-color: #f1f5f9 !important; 
-    color: #0f172a !important; 
-}
-
-/* Forcer la couleur du texte partout */
-p, span, label, div, h1, h2, h3, h4, h5, h6 { 
-    color: #0f172a !important; 
-}
-
-/* Sidebar personnalisée avec écriture blanche bien lisible */
-[data-testid="stSidebar"] { 
-    background-color: #0f172a !important; 
-}
-[data-testid="stSidebar"] * { 
-    color: #ffffff !important; 
-}
-
-/* Bannière principale */
-.vlg-banner { 
-    padding: 22px 28px; 
-    border-radius: 14px; 
-    background: linear-gradient(135deg, #0f172a, #1e3a8a); 
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    margin-bottom: 22px; 
-}
-.vlg-banner h1, .vlg-banner p { 
-    color: #ffffff !important; 
-}
-
-/* Cartes du menu principal */
-.card-menu { 
-    background-color: #ffffff !important; 
-    padding: 20px; 
-    border-radius: 12px; 
-    box-shadow: 0 4px 10px rgba(0,0,0,0.08); 
-    text-align: center; 
-    border-top: 5px solid #2563eb; 
-    margin-bottom: 18px; 
-}
-.card-menu h3 { 
-    color: #1e3a8a !important; 
-    margin-bottom: 8px; 
-    font-weight: 700;
-}
-.card-menu p {
-    color: #334155 !important;
-}
-
-/* Tableaux de données (Dataframe) : Fond clair, écriture foncée très lisible */
-[data-testid="stDataFrame"] {
-    background-color: #ffffff !important;
-    border-radius: 10px;
-    padding: 10px;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-}
-
-/* Champs de texte et formulaires */
-input, select, textarea {
-    color: #0f172a !important;
-    background-color: #ffffff !important;
-}
-
-</style>
-""",
-    unsafe_allow_html=True,
-)
-
 # --- INITIALISATION SESSION STATE ---
 if "users_db" not in st.session_state:
     st.session_state["users_db"] = {
@@ -134,6 +61,56 @@ if "leve_velos_db" not in st.session_state:
     ]
 if "diffusion_db" not in st.session_state:
     st.session_state["diffusion_db"] = []
+if "souvenirs_db" not in st.session_state:
+    st.session_state["souvenirs_db"] = []
+
+# --- BARRE LATÉRALE DE CONFIGURATION VISUELLE (4 OPTIONS) ---
+st.sidebar.markdown("### 🎨 Thème Visuel de l'Atelier")
+theme_option = st.sidebar.selectbox(
+    "Choisir le style graphique :",
+    [
+        "1. Bleu léger (Écriture Noire)",
+        "2. Gris / Noir léger (Écriture Blanche)",
+        "3. Bleu Marine léger (Écriture Noire)",
+        "4. Rose (Écriture Blanche & Boutons Téléchargement)"
+    ]
+)
+
+# Application dynamique du CSS selon l'option choisie
+if "1." in theme_option:
+    css_theme = """
+    .stApp { background-color: #e0f2fe !important; color: #0f172a !important; }
+    p, span, label, div, h1, h2, h3, h4, h5, h6 { color: #0f172a !important; }
+    .vlg-banner { background: #bae6fd; padding: 20px; border-radius: 12px; border-left: 6px solid #0284c7; }
+    .card-menu { background-color: #ffffff !important; padding: 18px; border-radius: 10px; border: 1px solid #7dd3fc; }
+    .download-btn-custom { background-color: #0284c7 !important; color: #ffffff !important; border-radius: 8px; padding: 10px; text-align: center; font-weight: bold; }
+    """
+elif "2." in theme_option:
+    css_theme = """
+    .stApp { background-color: #1e293b !important; color: #f8fafc !important; }
+    p, span, label, div, h1, h2, h3, h4, h5, h6 { color: #f8fafc !important; }
+    .vlg-banner { background: #334155; padding: 20px; border-radius: 12px; border-left: 6px solid #64748b; }
+    .card-menu { background-color: #0f172a !important; padding: 18px; border-radius: 10px; border: 1px solid #475569; }
+    .download-btn-custom { background-color: #475569 !important; color: #ffffff !important; border-radius: 8px; padding: 10px; text-align: center; font-weight: bold; }
+    """
+elif "3." in theme_option:
+    css_theme = """
+    .stApp { background-color: #e2e8f0 !important; color: #0f172a !important; }
+    p, span, label, div, h1, h2, h3, h4, h5, h6 { color: #0f172a !important; }
+    .vlg-banner { background: #cbd5e1; padding: 20px; border-radius: 12px; border-left: 6px solid #1e293b; }
+    .card-menu { background-color: #ffffff !important; padding: 18px; border-radius: 10px; border: 1px solid #94a3b8; }
+    .download-btn-custom { background-color: #334155 !important; color: #ffffff !important; border-radius: 8px; padding: 10px; text-align: center; font-weight: bold; }
+    """
+else: # Option 4: Rose / Blanc + Téléchargement rose
+    css_theme = """
+    .stApp { background-color: #fdf2f8 !important; color: #831843 !important; }
+    p, span, label, div, h1, h2, h3, h4, h5, h6 { color: #831843 !important; }
+    .vlg-banner { background: #fbcfe8; padding: 20px; border-radius: 12px; border-left: 6px solid #db2777; }
+    .card-menu { background-color: #ffffff !important; padding: 18px; border-radius: 10px; border: 1px solid #f472b6; }
+    .stDownloadButton button { background-color: #db2777 !important; color: #ffffff !important; border-radius: 8px; border: 2px solid #be185d; font-weight: bold; }
+    """
+
+st.markdown(f"<style>{css_theme}</style>", unsafe_allow_html=True)
 
 # --- GESTION CONNEXION ---
 if st.session_state["authenticated_user"] is None:
@@ -165,35 +142,38 @@ menu = st.sidebar.radio(
     [
         "🏠 Accueil & Menu Principal",
         "👷 1. Suivi Personnel & Dotations",
-        "📅 2. Planning, Présences & Heures Sup",
-        "📊 3. Suivi de la Production",
+        "📅 2. Planning, Présences & Feuille A4",
+        "📊 3. Suivi Production Quotidienne",
         "💶 4. Droits de Prime",
         "🚨 5. Sécurité, Lève-Vélos & AT",
-        "✉️ 6. Diffusion Société & Mail"
+        "📸 6. Souvenirs & Événements",
+        "✉️ 7. Diffusion Société & Mail"
     ]
 )
 
 # ==========================================
-# 0. ACCUEIL & MENU PRINCIPAL (ICÔNES)
+# 0. ACCUEIL & MENU PRINCIPAL
 # ==========================================
 if menu == "🏠 Accueil & Menu Principal":
     st.markdown('<div class="vlg-banner"><h1>🚲 Tableau de Bord de l\'Atelier VLG</h1><p>Sélectionnez un module ci-dessous ou utilisez le menu latéral.</p></div>', unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.markdown('<div class="card-menu"><h3>👷 Suivi Personnel</h3><p>Gestion des 30 agents max, contrats, dotations & fiches PDF.</p></div>', unsafe_allow_html=True)
+        st.markdown('<div class="card-menu"><h3>👷 Suivi Personnel</h3><p>Gestion des 30 agents max, contrats, dotations & fiches.</p></div>', unsafe_allow_html=True)
     with col2:
-        st.markdown('<div class="card-menu"><h3>📅 Planning & Heures Sup</h3><p>Gestion S1-S52, présence, HC/HS et mention FC automatique.</p></div>', unsafe_allow_html=True)
+        st.markdown('<div class="card-menu"><h3>📅 Planning & Feuille A4</h3><p>Gestion S1-S52 et feuille de présence A4 avec signatures.</p></div>', unsafe_allow_html=True)
     with col3:
-        st.markdown('<div class="card-menu"><h3>📊 Production Atelier</h3><p>Analyse des fiches de production et volumes journaliers.</p></div>', unsafe_allow_html=True)
+        st.markdown('<div class="card-menu"><h3>📊 Production Quotidienne</h3><p>Analyse Excel détaillée, catégories A/B/C et charges.</p></div>', unsafe_allow_html=True)
 
-    col4, col5, col6 = st.columns(3)
+    col4, col5, col6, col7 = st.columns(4)
     with col4:
-        st.markdown('<div class="card-menu"><h3>💶 Droits de Prime</h3><p>Calcul automatique des primes selon les seuils.</p></div>', unsafe_allow_html=True)
+        st.markdown('<div class="card-menu"><h3>💶 Primes</h3><p>Calcul automatique des primes.</p></div>', unsafe_allow_html=True)
     with col5:
-        st.markdown('<div class="card-menu"><h3>🚨 Sécurité & Lève-Vélos</h3><p>Suivi HSE, 30 lève-vélos connectés & Accidents de travail.</p></div>', unsafe_allow_html=True)
+        st.markdown('<div class="card-menu"><h3>🚨 Sécurité</h3><p>30 lève-vélos & registres AT.</p></div>', unsafe_allow_html=True)
     with col6:
-        st.markdown('<div class="card-menu"><h3>✉️ Diffusion Société</h3><p>Envoi de documents et notes de service par mail/SMS.</p></div>', unsafe_allow_html=True)
+        st.markdown('<div class="card-menu"><h3>📸 Souvenirs</h3><p>Album photo et moments de l\'atelier.</p></div>', unsafe_allow_html=True)
+    with col7:
+        st.markdown('<div class="card-menu"><h3>✉️ Diffusion</h3><p>Notes de service et documents.</p></div>', unsafe_allow_html=True)
 
 # ==========================================
 # 1. SUIVI PERSONNEL & DOTATIONS
@@ -208,7 +188,7 @@ elif menu == "👷 1. Suivi Personnel & Dotations":
             with st.form("ajout_agent"):
                 c_nom = st.text_input("Nom et Prénom")
                 c_tel = st.text_input("N° Téléphone")
-                c_badge = st.text_input("N° Badge (2 chiffres ou format badge)")
+                c_badge = st.text_input("N° Badge")
                 c_type = st.selectbox("Type de contrat", ["CDI", "CDD"])
                 c_deb = st.date_input("Date de début", value=datetime.date.today())
                 c_fin = st.date_input("Date de fin (laisser vide si CDI)", value=datetime.date.today() + datetime.timedelta(days=365))
@@ -231,7 +211,6 @@ elif menu == "👷 1. Suivi Personnel & Dotations":
                     st.rerun()
 
     st.divider()
-    
     recherche_nom = st.text_input("🔍 Rechercher un agent par son nom :", placeholder="Ex: ABBAS...")
     agents_filtres = {k: v for k, v in st.session_state["agents_db"].items() if recherche_nom.lower() in k.lower()}
 
@@ -241,12 +220,10 @@ elif menu == "👷 1. Suivi Personnel & Dotations":
         statut_contrat = inf["contrat"]
         if statut_contrat == "CDD" and inf["fin"]:
             try:
-                date_fin_obj = datetime.date.fromisoformat(inf["fin"])
-                if datetime.date.today() > date_fin_obj:
+                if datetime.date.today() > datetime.date.fromisoformat(inf["fin"]):
                     statut_contrat = "CDD (FC)"
             except:
                 pass
-        
         liste_resume.append({
             "Nom & Prénom": nom,
             "Contrat": statut_contrat,
@@ -262,40 +239,20 @@ elif menu == "👷 1. Suivi Personnel & Dotations":
     with pd.ExcelWriter(output_excel, engine="openpyxl") as writer:
         df_agents_resume.to_excel(writer, index=False, sheet_name="Mecaniciens_VLG")
     st.download_button(
-        "📥 Télécharger la liste des mécaniciens (Excel / PDF optimisé 1 page)",
+        "📥 Télécharger la liste des mécaniciens (Excel mis en page A4)",
         data=output_excel.getvalue(),
         file_name="liste_mecaniciens_vlg.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
-    st.divider()
-    st.subheader("📁 Fiche Individuelle Détaillée (Modifier / Documents / Dotations)")
-    agent_selectionne = st.selectbox("Choisir un agent à inspecter", list(agents_filtres.keys()))
+# ==========================================
+# 2. PLANNING, PRÉSENCES & FEUILLE A4
+# ==========================================
+elif menu == "📅 2. Planning, Présences & Feuille A4":
+    st.header("📅 Planning Annuel S1-S52 & Feuille de Présence A4")
     
-    if agent_selectionne:
-        inf_ag = st.session_state["agents_db"][agent_selectionne]
-        col_f1, col_f2 = st.columns(2)
-        with col_f1:
-            st.write(f"**Contrat :** {inf_ag['contrat']}")
-            st.write(f"**Date de début :** {inf_ag['debut']}")
-            st.write(f"**Date de fin :** {inf_ag['fin'] if inf_ag['fin'] else 'Indéterminée (CDI)'}")
-            st.write(f"**Téléphone :** {inf_ag['tel']}")
-            st.write(f"**Badge :** {inf_ag['badge']}")
-        with col_f2:
-            st.write(f"**Dotation actuelle :** {inf_ag['dotation']}")
-            doc_joint = st.file_uploader(f"Injecter un contrat ou attestation pour {agent_selectionne}", type=["pdf", "png", "jpg"], key=f"doc_{agent_selectionne}")
-            if doc_joint:
-                st.success(f"Document {doc_joint.name} injecté avec succès pour {agent_selectionne} !")
-
-# ==========================================
-# 2. PLANNING, PRÉSENCES & HEURES SUP
-# ==========================================
-elif menu == "📅 2. Planning, Présences & Heures Sup":
-    st.header("📅 Planning Annuel S1 à S52 & Heures Supplémentaires")
     semaine_num = st.selectbox("Sélectionner la Semaine", list(range(1, 53)), format_func=lambda x: f"Semaine {x}")
     
-    st.info("💡 L'ajout d'un agent se répercute instantanément. La mention 'FC' s'affiche si le contrat est échu.")
-
     records_planning = []
     for agent, infos in st.session_state["agents_db"].items():
         aff_nom = agent
@@ -305,12 +262,10 @@ elif menu == "📅 2. Planning, Présences & Heures Sup":
                     aff_nom = f"{agent} [FC]"
             except:
                 pass
-
         row = {"Agent": aff_nom}
         for j in JOURS_SEMAINE:
             key = f"S{semaine_num}_{agent}_{j}"
             row[j] = st.session_state["planning_db"].get(key, "07h-14h")
-        
         key_hs = f"S{semaine_num}_{agent}_HS"
         row["Heures Sup (h)"] = st.session_state["planning_db"].get(key_hs, 0.0)
         records_planning.append(row)
@@ -318,47 +273,189 @@ elif menu == "📅 2. Planning, Présences & Heures Sup":
     df_planning = pd.DataFrame(records_planning)
     edited_planning = st.data_editor(df_planning, use_container_width=True, hide_index=True)
 
-    if st.button("💾 Enregistrer les modifications du planning & Heures Sup", type="primary"):
+    if st.button("💾 Enregistrer le planning", type="primary"):
         for _, row in edited_planning.iterrows():
             clean_name = row["Agent"].replace(" [FC]", "").strip()
             for j in JOURS_SEMAINE:
                 st.session_state["planning_db"][f"S{semaine_num}_{clean_name}_{j}"] = str(row[j]).strip()
             st.session_state["planning_db"][f"S{semaine_num}_{clean_name}_HS"] = float(row["Heures Sup (h)"])
-        st.success("Planning et Heures Supplémentaires mis à jour avec succès !")
+        st.success("Planning enregistré avec succès !")
+
+    st.divider()
+    st.subheader("📄 Génération de la Feuille de Présence A4 (Badges, Téléphones & Signatures)")
+    jour_selection = st.selectbox("Jour de la feuille de présence", JOURS_SEMAINE)
+    
+    # Filtrer les agents présents ce jour-là (exclure repos/absent si configuré ou lister tous les actifs du planning)
+    agents_du_jour = []
+    for agent, infos in st.session_state["agents_db"].items():
+        val_jour = st.session_state["planning_db"].get(f"S{semaine_num}_{agent}_{jour_selection}", "07h-14h")
+        if val_jour.lower() not in ["repos", "absent", "congé", "off", "-"]:
+            agents_du_jour.append({
+                "NOM & PRENOM": agent,
+                "TEL": infos["tel"],
+                "BADGE N°": infos["badge"],
+                "SIGNATURE 07H": "",
+                "SIGNATURE 14H": ""
+            })
+    
+    df_feuille_presence = pd.DataFrame(agents_du_jour)
+    st.dataframe(df_feuille_presence, use_container_width=True, hide_index=True)
+
+    # Export Excel formaté A4 avec encadrement et dimensions pour signatures
+    output_pres = io.BytesIO()
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Presence_A4"
+
+    # En-tête Mobiservice / VLG
+    ws['A1'] = "MOBISERVICE - ATELIER VILLENEUVE-LA-GARENNE"
+    ws['A1'].font = Font(size=14, bold=True)
+    ws['A2'] = f"FEUILLE DE PRÉSENCE - {jour_selection.upper()} (Semaine {semaine_num})"
+    ws['A2'].font = Font(size=11, bold=True)
+    ws['A3'] = f"Date du jour : {datetime.date.today().strftime('%d/%m/%Y')}"
+    ws['A3'].font = Font(size=10, italic=True)
+
+    headers = ["NOM & PRENOM", "TEL", "BADGE N°", "SIGNATURE 07H", "SIGNATURE 14H"]
+    row_idx = 5
+    for col_idx, h in enumerate(headers, 1):
+        cell = ws.cell(row=row_idx, column=col_idx, value=h)
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill(start_color="1E3A8A", end_color="1E3A8A", fill_type="solid")
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+
+    thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+
+    for agent_item in agents_du_jour:
+        row_idx += 1
+        ws.cell(row=row_idx, column=1, value=agent_item["NOM & PRENOM"]).border = thin_border
+        ws.cell(row=row_idx, column=2, value=agent_item["TEL"]).border = thin_border
+        ws.cell(row=row_idx, column=3, value=agent_item["BADGE N°"]).border = thin_border
+        
+        # Cellules de signature (hauteur de ligne ~40 pour ~1cm, colonnes adaptées pour ~3cm)
+        sig1 = ws.cell(row=row_idx, column=4, value="")
+        sig1.border = thin_border
+        sig2 = ws.cell(row=row_idx, column=5, value="")
+        sig2.border = thin_border
+        ws.row_dimensions[row_idx].height = 35
+
+    ws.column_dimensions['A'].width = 30
+    ws.column_dimensions['B'].width = 12
+    ws.column_dimensions['C'].width = 12
+    ws.column_dimensions['D'].width = 18
+    ws.column_dimensions['E'].width = 18
+
+    wb.save(output_pres)
+    output_pres.seek(0)
+
+    st.download_button(
+        "📥 Télécharger la Feuille de Présence A4 (Excel encadré & aligné)",
+        data=output_pres.getvalue(),
+        file_name=f"feuille_presence_s{semaine_num}_{jour_selection}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
 
 # ==========================================
-# 3. SUIVI DE LA PRODUCTION
+# 3. SUIVI DE LA PRODUCTION QUOTIDIENNE
 # ==========================================
-elif menu == "📊 3. Suivi de la Production":
-    st.header("📊 Analyse de la Production (Fichiers Atelier)")
-    st.write("Importez vos fichiers CSV ou Excel de production journalière.")
+elif menu == "📊 3. Suivi Production Quotidienne":
+    st.header("📊 Analyse de la Production Quotidienne (Indépendant Planning & Primes)")
+    st.write("Importez votre fichier Excel ou CSV de production pour générer le tableau dynamique complet.")
     
-    prod_file = st.file_uploader("📂 Déposer le fichier de production atelier", type=["xlsx", "csv"])
+    prod_file = st.file_uploader("📂 Déposer le fichier de production atelier", type=["xlsx", "xls", "csv"])
     if prod_file:
         try:
             if prod_file.name.endswith(".csv"):
-                df_prod = pd.read_csv(prod_file, sep=None, engine="python")
+                df_p = pd.read_csv(prod_file, sep=None, engine="python")
             else:
-                df_prod = pd.read_excel(prod_file)
-            st.success(f"Fichier chargé avec succès : {len(df_prod)} lignes analysées.")
-            st.dataframe(df_prod.head(20), use_container_width=True)
+                df_p = pd.read_excel(prod_file)
+            
+            st.success(f"Fichier chargé avec succès ! {len(df_p)} lignes lues.")
+            
+            # Normalisation colonnes attendues
+            col_agent = "Assigné à l'acteur Libellé" if "Assigné à l'acteur Libellé" in df_p.columns else df_p.columns[4]
+            col_mat = "Matériel" if "Matériel" in df_p.columns else df_p.columns[3]
+            col_cat = "smovCategory" if "smovCategory" in df_p.columns else df_p.columns[6]
+            col_etat = "Etat" if "Etat" in df_p.columns else df_p.columns[8]
+            col_charge = "Charge prévue" if "Charge prévue" in df_p.columns else df_p.columns[17]
+
+            # Nettoyage
+            df_p[col_agent] = df_p[col_agent].astype(str).str.strip().str.upper()
+            
+            # Calcul tableau dynamique par agent
+            agents_uniques = df_p[col_agent].unique()
+            synthese_data = []
+
+            total_velos_general = len(df_p)
+            total_ctrl_general = len(df_p[df_p[col_etat].astype(str).str.contains("contrôler|A contrôler", case=False, na=False)])
+            
+            for ag in agents_uniques:
+                sub_df = df_p[df_p[col_agent] == ag]
+                tot_velos = len(sub_df)
+                
+                cat_a = len(sub_df[sub_df[col_cat].astype(str).str.upper() == 'A'])
+                cat_b = len(sub_df[sub_df[col_cat].astype(str).str.upper() == 'B'])
+                cat_c = len(sub_df[sub_df[col_cat].astype(str).str.upper() == 'C'])
+                
+                pct_a = round((cat_a / tot_velos * 100), 1) if tot_velos > 0 else 0.0
+                pct_b = round((cat_b / tot_velos * 100), 1) if tot_velos > 0 else 0.0
+                pct_c = round((cat_c / tot_velos * 100), 1) if tot_velos > 0 else 0.0
+
+                synthese_data.append({
+                    "Nom Agent": ag,
+                    "Total Vélos": tot_velos,
+                    "Cat A": cat_a,
+                    "% A": f"{pct_a}%",
+                    "Cat B": cat_b,
+                    "% B": f"{pct_b}%",
+                    "Cat C": cat_c,
+                    "% C": f"{pct_c}%",
+                    "Total Catégories": cat_a + cat_b + cat_c
+                })
+
+            df_synthese = pd.DataFrame(synthese_data)
+            
+            st.subheader("📋 Tableau Dynamique de Production par Agent")
+            st.dataframe(df_synthese, use_container_width=True, hide_index=True)
+
+            # Indicateurs globaux
+            st.divider()
+            col_m1, col_m2, col_m3 = st.columns(3)
+            with col_m1:
+                st.metric("TOTAL VÉLOS EN GÉNÉRAL", total_velos_general)
+            with col_m2:
+                st.metric("VÉLOS STATUT À CONTRÔLER", total_ctrl_general)
+            with col_m3:
+                pct_c_gen = round((len(df_p[df_p[col_cat].astype(str).str.upper() == 'C']) / total_velos_general * 100), 1) if total_velos_general > 0 else 0.0
+                st.metric("% CATÉGORIE C EN GÉNÉRAL", f"{pct_c_gen}%")
+
+            # Export Excel encadré A4
+            out_prod_excel = io.BytesIO()
+            df_synthese.to_excel(out_prod_excel, index=False, sheet_name="Prod_Quotidienne")
+            out_prod_excel.seek(0)
+            
+            st.download_button(
+                "📥 Télécharger le rapport de production quotidien (Excel A4)",
+                data=out_prod_excel.getvalue(),
+                file_name="rapport_production_quotidienne.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+
         except Exception as e:
-            st.error(f"Erreur lors de la lecture : {e}")
+            st.error(f"Erreur lors de l'analyse du fichier : {e}")
 
 # ==========================================
 # 4. DROITS DE PRIME
 # ==========================================
 elif menu == "💶 4. Droits de Prime":
     st.header("💶 Droits et Calcul des Primes Mensuelles")
-    
-    velos_input = st.number_input("Nombre de vélos traités par l'agent", 0, 30, 8)
+    velos_input = st.number_input("Nombre de vélos traités par l'agent", 0, 50, 8)
     if velos_input < 6:
         prime = 0.0
     elif velos_input >= 10:
         prime = 155.0
     else:
         prime = round(50.0 + (velos_input - 6.0) * 26.25, 2)
-    
     st.metric("Prime calculée", f"{prime} €")
 
 # ==========================================
@@ -366,103 +463,107 @@ elif menu == "💶 4. Droits de Prime":
 # ==========================================
 elif menu == "🚨 5. Sécurité, Lève-Vélos & AT":
     st.header("🚨 Espace Sécurité, HSE & Suivi des Lève-Vélos")
-    
     tab_s1, tab_s2, tab_s3, tab_s4 = st.tabs([
         "⚙️ Suivi 30 Lève-Vélos",
-        "👷 Fiches & Historique Salariés",
-        "📝 Minutes Sécurité (PDF/Word)",
-        "⚠️ Accidents du Travail & Filtre Date"
+        "👷 Fiches Salariés",
+        "📝 Minutes Sécurité",
+        "⚠️ Accidents du Travail"
     ])
 
     with tab_s1:
-        st.subheader("🔧 Suivi des 30 Lève-Vélos connectés avec l'atelier")
-
+        st.subheader("🔧 Suivi des 30 Lève-Vélos de l'atelier")
         for lv in st.session_state["leve_velos_db"]:
             with st.expander(f"📍 {lv['nom']} — Statut : {lv['statut']}"):
-                col_lv1, col_lv2 = st.columns(2)
-                with col_lv1:
-                    nouvelle_anomalie = st.text_input("Signalement d'anomalie (Agent)", value=lv['anomalie'], key=f"ano_{lv['id']}")
-                with col_lv2:
-                    travaux_faits = st.text_input("Travaux effectués / Réponse atelier", value=lv['intervention'], key=f"trav_{lv['id']}")
-                    date_interv = st.date_input("Date d'intervention", value=datetime.date.today(), key=f"date_{lv['id']}")
-                
+                c1, c2 = st.columns(2)
+                with c1:
+                    ano = st.text_input("Anomalie signalée", value=lv['anomalie'], key=f"ano_{lv['id']}")
+                with c2:
+                    trav = st.text_input("Travaux effectués", value=lv['intervention'], key=f"trav_{lv['id']}")
                 if st.button(f"Mettre à jour {lv['nom']}", key=f"btn_lv_{lv['id']}"):
-                    lv['anomalie'] = nouvelle_anomalie
-                    lv['intervention'] = travaux_faits
-                    lv['date_intervention'] = date_interv.isoformat()
-                    lv['statut'] = "Réparé / Conforme" if travaux_faits else "En attente"
-                    st.success(f"Mise à jour enregistrée pour {lv['nom']} !")
+                    lv['anomalie'] = ano
+                    lv['intervention'] = trav
+                    lv['statut'] = "Réparé / Conforme" if trav else "En attente"
+                    st.success("Mise à jour enregistrée !")
 
     with tab_s2:
-        st.subheader("📂 Fiches de Sécurité & Historique par Salarié")
-        recherche_sec = st.selectbox("Sélectionner un salarié", list(st.session_state["agents_db"].keys()), key="sec_sal")
-        
-        with st.form("form_sec_sal"):
-            type_f = st.selectbox("Type de document", ["Attestation Port d'ÉPI", "Visite Médicale", "Habilitation Électrique / VAE", "Consignes de Sécurité"])
-            file_sec = st.file_uploader("Joindre le fichier (PDF / Word)", type=["pdf", "docx"])
-            sub_sec_f = st.form_submit_button("Injecter la fiche au dossier sécurité")
-            if sub_sec_f and file_sec:
-                st.session_state["securite_db"]["fiches"].append({
-                    "salarie": recherche_sec,
-                    "type": type_f,
-                    "fichier": file_sec.name,
-                    "date": datetime.date.today().isoformat()
-                })
-                st.success(f"Fiche sécurité enregistrée pour {recherche_sec} !")
-
-        st.write("### Historique des fiches injectées :")
-        fiches_sal = [f for f in st.session_state["securite_db"]["fiches"] if f["salarie"] == recherche_sec]
-        if fiches_sal:
-            st.dataframe(pd.DataFrame(fiches_sal), use_container_width=True)
-        else:
-            st.info("Aucun document de sécurité pour cet agent.")
+        st.subheader("📂 Fiches de Sécurité par Salarié")
+        sal = st.selectbox("Choisir un salarié", list(st.session_state["agents_db"].keys()), key="sec_sal_box")
+        f_type = st.selectbox("Type", ["Attestation EPI", "Visite Médicale", "Habilitation"])
+        f_up = st.file_uploader("Fichier justificatif (PDF)", type=["pdf", "png"])
+        if st.button("Enregistrer la fiche"):
+            if f_up:
+                st.session_state["securite_db"]["fiches"].append({"salarie": sal, "type": f_type, "fichier": f_up.name})
+                st.success("Fiche enregistrée avec succès !")
+        if st.session_state["securite_db"]["fiches"]:
+            st.dataframe(pd.DataFrame(st.session_state["securite_db"]["fiches"]), use_container_width=True)
 
     with tab_s3:
-        st.subheader("📄 Minutes de Sécurité & Dossiers de Site")
-        titre_min = st.text_input("Titre de la Minute / Sujet de Sécurité")
-        doc_min = st.file_uploader("Télécharger le document (PDF / Word)", type=["pdf", "docx"])
-        if st.button("Ajouter la minute de sécurité"):
-            if titre_min and doc_min:
-                st.session_state["securite_db"]["minutes"].append({"titre": titre_min, "fichier": doc_min.name, "date": datetime.date.today().isoformat()})
-                st.success("Minute de sécurité ajoutée et archivée.")
-
+        st.subheader("📄 Minutes de Sécurité")
+        t_min = st.text_input("Sujet de la minute")
+        f_min = st.file_uploader("Document joint", type=["pdf", "docx"])
+        if st.button("Ajouter la minute") and t_min:
+            st.session_state["securite_db"]["minutes"].append({"titre": t_min, "date": str(datetime.date.today())})
+            st.success("Minute ajoutée !")
         if st.session_state["securite_db"]["minutes"]:
             st.dataframe(pd.DataFrame(st.session_state["securite_db"]["minutes"]), use_container_width=True)
 
     with tab_s4:
-        st.subheader("⚠️ Registre des Accidents du Travail (AT) & Filtrage par Date")
-        date_filtre = st.date_input("Filtrer l'historique à partir du :", value=datetime.date.today() - datetime.timedelta(days=365))
-        
+        st.subheader("⚠️ Registre des Accidents du Travail (AT)")
         with st.form("form_at"):
-            ag_at = st.selectbox("Agent concerné", list(st.session_state["agents_db"].keys()), key="at_ag")
-            desc_at = st.text_area("Description de l'incident / accident")
-            date_at = st.date_input("Date de l'accident", value=datetime.date.today())
-            sub_at = st.form_submit_button("Enregistrer l'accident au registre")
-            if sub_at:
-                st.session_state["securite_db"]["accidents"].append({
-                    "agent": ag_at,
-                    "description": desc_at,
-                    "date": date_at.isoformat()
-                })
-                st.success("Accident enregistré au registre réglementaire.")
-
-        accs = st.session_state["securite_db"]["accidents"]
-        if accs:
-            df_acc = pd.DataFrame(accs)
-            st.dataframe(df_acc, use_container_width=True)
+            ag_at = st.selectbox("Agent", list(st.session_state["agents_db"].keys()))
+            desc_at = st.text_area("Description")
+            if st.form_submit_button("Enregistrer l'accident"):
+                st.session_state["securite_db"]["accidents"].append({"agent": ag_at, "desc": desc_at, "date": str(datetime.date.today())})
+                st.success("Accident enregistré au registre.")
+        if st.session_state["securite_db"]["accidents"]:
+            st.dataframe(pd.DataFrame(st.session_state["securite_db"]["accidents"]), use_container_width=True)
 
 # ==========================================
-# 6. DIFFUSION SOCIÉTÉ & MAIL
+# 6. SOUVENIRS & ÉVÉNEMENTS (PHOTOS / DOCS)
 # ==========================================
-elif menu == "✉️ 6. Diffusion Société & Mail":
-    st.header("✉️ Diffusion de Notes & Documents aux Salariés")
+elif menu == "📸 6. Souvenirs & Événements":
+    st.header("📸 Historique & Souvenirs des Bons Moments de l'Atelier")
+    st.write("Partagez et archivez les photos, moments forts et documents des événements de l'équipe VLG.")
 
-    with st.form("form_diffusion"):
-        sujet_mail = st.text_input("Objet de la diffusion")
-        message_mail = st.text_area("Message / Consignes")
-        piece_jointe = st.file_uploader("Document attaché (PDF, Word)", type=["pdf", "docx", "xlsx"])
-        destinataires = st.multiselect("Destinataires", list(st.session_state["agents_db"].keys()), default=list(st.session_state["agents_db"].keys()))
+    with st.form("form_souvenir"):
+        titre_souv = st.text_input("Titre de l'événement ou du souvenir")
+        desc_souv = st.text_area("Description / Récit du moment")
+        media_souv = st.file_uploader("Ajouter une photo ou un document", type=["png", "jpg", "jpeg", "pdf", "docx"])
+        sub_souv = st.form_submit_button("Publier dans l'album souvenir")
         
-        btn_diff = st.form_submit_button("🚀 Diffuser à tous les salariés sélectionnés", type="primary")
-        if btn_diff and sujet_mail:
-            st.success(f"Diffusion réussie envoyée à {len(destinataires)} salariés avec succès !")
+        if sub_souv and titre_souv:
+            nom_fichier_media = media_souv.name if media_souv else "Aucun fichier"
+            st.session_state["souvenirs_db"].append({
+                "titre": titre_souv,
+                "description": desc_souv,
+                "fichier": nom_fichier_media,
+                "auteur": current_user,
+                "date": str(datetime.date.today())
+            })
+            st.success("Souvenir publié avec succès dans l'album de l'atelier !")
+
+    st.divider()
+    st.subheader("🖼️ Galerie des Souvenirs de l'Atelier VLG")
+    if st.session_state["souvenirs_db"]:
+        for s in reversed(st.session_state["souvenirs_db"]):
+            with st.container():
+                st.markdown(f"### 🎉 {s['titre']}")
+                st.write(f"*Publié par {s['auteur']} le {s['date']}*")
+                st.write(s['description'])
+                if s['fichier'] != "Aucun fichier":
+                    st.info(f"📎 Fichier / Photo attaché : {s['fichier']}")
+                st.divider()
+    else:
+        st.info("Aucun souvenir enregistré pour le moment. Soyez le premier à en publier un !")
+
+# ==========================================
+# 7. DIFFUSION SOCIÉTÉ & MAIL
+# ==========================================
+elif menu == "✉️ 7. Diffusion Société & Mail":
+    st.header("✉️ Diffusion de Notes & Documents aux Salariés")
+    with st.form("form_diffusion"):
+        sujet = st.text_input("Objet de la note")
+        msg = st.text_area("Message")
+        dest = st.multiselect("Destinataires", list(st.session_state["agents_db"].keys()), default=list(st.session_state["agents_db"].keys()))
+        if st.form_submit_button("🚀 Diffuser aux salariés", type="primary") and sujet:
+            st.success(f"Diffusion réussie envoyée à {len(dest)} salariés !")

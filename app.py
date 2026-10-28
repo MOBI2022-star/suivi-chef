@@ -1,427 +1,359 @@
-import datetime
-import io
-import re
-import openpyxl
-from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
-import pandas as pd
 import streamlit as st
+import pandas as pd
+import matplotlib.pyplot as plt
+from datetime import datetime, date, timedelta
 
-NOM_SITE = "Atelier Villeneuve-la-Garenne - Intranet Sécurité & Production"
-JOURS_SEMAINE = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
-
-# Constantes de colonnes pour les fichiers Excel de l'atelier (export WO EBO)
-ACTOR_COL = "Assigné à l'acteur Libellé"
-CAT_ABC_COL = "smovCategory"
-CAT_MODEL_COL = "Modèle d'équipement"
-MAT_COL = "Matériel"
-CHARGE_COL = "Charge prévue"
-ETAT_COL = "Etat"
-
-# 5 Agents exemples modifiables au lieu d'une liste figée en dur
-AGENTS_INITIAUX = [
-    {"nom": "ALI ABDALLAH", "tel": "14", "badge": "1706", "contrat": "CDI", "debut": "2022-03-15", "fin": "", "dotation": "Complet"},
-    {"nom": "ERIC DUPONT", "tel": "05", "badge": "830", "contrat": "CDI", "debut": "2021-06-12", "fin": "", "dotation": "Complet"},
-    {"nom": "THOMAS MARTIN", "tel": "09", "badge": "1069", "contrat": "CDD", "debut": "2024-01-01", "fin": "2026-12-31", "dotation": "Complet"},
-    {"nom": "FARID SALHI", "tel": "01", "badge": "858", "contrat": "CDI", "debut": "2018-09-01", "fin": "", "dotation": "Complet"},
-    {"nom": "BOUMEDIENNE LAZAAR", "tel": "02", "badge": "837", "contrat": "CDI", "debut": "2020-05-01", "fin": "", "dotation": "Complet"},
-]
-
-st.set_page_config(page_title=NOM_SITE, page_icon="🚲", layout="wide")
-
-# --- FONCTIONS UTILITAIRES DE CALCUL ET STYLE ---
-def parse_time_to_hours(val):
-    if pd.isna(val):
-        return 0.0
-    val_str = str(val).strip()
-    match = re.match(r'^(\d+):(\d+):(\d+)$', val_str)
-    if match:
-        h, m, s = map(int, match.groups())
-        return h + m / 60.0 + s / 3600.0
-    try:
-        return float(val_str)
-    except:
-        return 0.0
-
-def format_hours(hours_float):
-    total_seconds = int(round(hours_float * 3600))
-    h = total_seconds // 3600
-    m = (total_seconds % 3600) // 60
-    return f"{h}h {m:02d}m"
-
-def calculer_prime(velos):
-    if velos < 6.0:
-        return 0.0
-    elif velos >= 10.0:
-        return 155.0
-    else:
-        return round(50.0 + (velos - 6.0) * 26.25, 2)
-
-def lire_fichier(uploaded_file):
-    if uploaded_file.name.endswith(".csv"):
-        return pd.read_csv(uploaded_file, sep=None, engine="python")
-    else:
-        return pd.read_excel(uploaded_file)
-
-def color_eligibility(val):
-    if "Droit de prime" in str(val):
-        return "background-color: #d1fae5; color: #065f46; font-weight: bold;"
-    return "background-color: #fee2e2; color: #991b1b; font-weight: bold;"
-
-def to_excel(df_to_export):
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df_to_export.to_excel(writer, index=False, sheet_name='Analyse_Atelier')
-    return output.getvalue()
-
-# --- INITIALISATION SESSION STATE ---
-if "users_db" not in st.session_state:
-    st.session_state["users_db"] = {
-        "admin": {"password": "AdminPassword123!", "role": "Admin", "nom": "Administrateur VLG"}
-    }
-if "authenticated_user" not in st.session_state:
-    st.session_state["authenticated_user"] = None
-if "agents_db" not in st.session_state:
-    st.session_state["agents_db"] = {a["nom"]: a.copy() for a in AGENTS_INITIAUX}
-if "planning_db" not in st.session_state:
-    st.session_state["planning_db"] = {}
-if "securite_db" not in st.session_state:
-    st.session_state["securite_db"] = {"fiches": [], "accidents": [], "minutes": []}
-if "leve_velos_db" not in st.session_state:
-    st.session_state["leve_velos_db"] = [
-        {"id": i, "nom": f"Lève-Vélo n°{i}", "statut": "Opérationnel", "anomalie": "", "intervention": "Aucune"}
-        for i in range(1, 31)
-    ]
-if "souvenirs_db" not in st.session_state:
-    st.session_state["souvenirs_db"] = []
-
-# --- SÉLECTEUR DE THÈMES VISUELS (DONT THÈMES REPOSANTS) ---
-st.sidebar.markdown("### 🎨 Thème Visuel Reposant (Journée 7h)")
-theme_option = st.sidebar.selectbox(
-    "Choisir le style d'affichage :",
-    [
-        "🌙 Nuit Sombre & Ambre (Anti-fatigue)",
-        "🌲 Vert Sauge & Faux-Noir (Nature)",
-        "🪨 Gris Papier & Encre (Clair anti-éblouissement)",
-        "Gris / Noir léger (Écriture Blanche)",
-        "Bleu léger (Écriture Noire)",
-        "Rose (Écriture Blanche & Boutons)"
-    ]
+# --- CONFIGURATION DE LA PAGE ---
+st.set_page_config(
+    page_title="Analyse Chef - Gestion Flotte & Insertion",
+    page_icon="🚲",
+    layout="wide"
 )
 
-if "🌙" in theme_option:
-    css_theme = """
-    .stApp { background-color: #121826 !important; color: #ffffff !important; }
-    p, span, label, div, h1, h2, h3, h4, h5, h6 { color: #ffffff !important; }
-    .vlg-banner { background: #1e293b; padding: 20px; border-radius: 12px; border-left: 6px solid #f59e0b; }
-    .card-menu { background-color: #1e293b !important; padding: 18px; border-radius: 10px; border: 1px solid #334155; }
-    """
-elif "🌲" in theme_option:
-    css_theme = """
-    .stApp { background-color: #0f1715 !important; color: #f1f5f9 !important; }
-    p, span, label, div, h1, h2, h3, h4, h5, h6 { color: #f1f5f9 !important; }
-    .vlg-banner { background: #1c2826; padding: 20px; border-radius: 12px; border-left: 6px solid #34d399; }
-    .card-menu { background-color: #1c2826 !important; padding: 18px; border-radius: 10px; border: 1px solid #2d3a37; }
-    """
-elif "🪨" in theme_option:
-    css_theme = """
-    .stApp { background-color: #f3f4f6 !important; color: #111827 !important; }
-    p, span, label, div, h1, h2, h3, h4, h5, h6 { color: #111827 !important; }
-    .vlg-banner { background: #e5e7eb; padding: 20px; border-radius: 12px; border-left: 6px solid #374151; }
-    .card-menu { background-color: #ffffff !important; padding: 18px; border-radius: 10px; border: 1px solid #d1d5db; }
-    """
-elif "Gris / Noir" in theme_option:
-    css_theme = """
-    .stApp { background-color: #1e293b !important; color: #f8fafc !important; }
-    p, span, label, div, h1, h2, h3, h4, h5, h6 { color: #f8fafc !important; }
-    .vlg-banner { background: #334155; padding: 20px; border-radius: 12px; border-left: 6px solid #64748b; }
-    .card-menu { background-color: #0f172a !important; padding: 18px; border-radius: 10px; border: 1px solid #475569; }
-    """
-elif "Bleu léger" in theme_option:
-    css_theme = """
-    .stApp { background-color: #e0f2fe !important; color: #0f172a !important; }
-    p, span, label, div, h1, h2, h3, h4, h5, h6 { color: #0f172a !important; }
-    .vlg-banner { background: #bae6fd; padding: 20px; border-radius: 12px; border-left: 6px solid #0284c7; }
-    .card-menu { background-color: #ffffff !important; padding: 18px; border-radius: 10px; border: 1px solid #7dd3fc; }
-    """
-else:
-    css_theme = """
-    .stApp { background-color: #fdf2f8 !important; color: #831843 !important; }
-    p, span, label, div, h1, h2, h3, h4, h5, h6 { color: #831843 !important; }
-    .vlg-banner { background: #fbcfe8; padding: 20px; border-radius: 12px; border-left: 6px solid #db2777; }
-    .card-menu { background-color: #ffffff !important; padding: 18px; border-radius: 10px; border: 1px solid #f472b6; }
-    .stDownloadButton button { background-color: #db2777 !important; color: #ffffff !important; border-radius: 8px; border: 2px solid #be185d; font-weight: bold; }
-    """
+# --- 1. SÉCURITÉ ET AUTHENTIFICATION ---
+if "connecte" not in st.session_state:
+    st.session_state.connecte = False
 
-st.markdown(f"<style>{css_theme}</style>", unsafe_allow_html=True)
-
-# --- CONNEXION ---
-if st.session_state["authenticated_user"] is None:
-    st.markdown('<div class="vlg-banner"><h1>🚲 Intranet Atelier Villeneuve-la-Garenne</h1><p>Connexion Sécurisée</p></div>', unsafe_allow_html=True)
-    with st.form("login_form"):
-        username = st.text_input("Identifiant", placeholder="admin")
+if not st.session_state.connecte:
+    st.markdown("<h2 style='text-align: center;'>🔐 Connexion - Analyse Chef</h2>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center;'>Veuillez vous identifier pour accéder à l'application interne.</p>", unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        username = st.text_input("Identifiant")
         password = st.text_input("Mot de passe", type="password")
-        if st.form_submit_button("Se connecter", type="primary"):
-            users = st.session_state["users_db"]
-            if username in users and users[username]["password"] == password:
-                st.session_state["authenticated_user"] = username
+        
+        if st.button("Se connecter", use_container_width=True):
+            if username == "Admin" and password == "IMAD2014@":
+                st.session_state.connecte = True
                 st.rerun()
-            st.error("Identifiant ou mot de passe incorrect.")
+            else:
+                st.error("Identifiant ou mot de passe incorrect.")
     st.stop()
 
-st.sidebar.markdown(f"### 🚲 INTRANET VLG")
-st.sidebar.write(f"Connecté : **{st.session_state['authenticated_user']}**")
-if st.sidebar.button("Déconnexion"):
-    st.session_state["authenticated_user"] = None
-    st.rerun()
+# --- 2. BARRE LATÉRALE & PARAMÈTRES ---
+st.sidebar.title("🚲 Menu Analyse Chef")
+st.sidebar.success("Connecté en tant qu'Administrateur")
 
-st.sidebar.divider()
-menu_option = st.sidebar.radio(
+# Stockage & Mémoire
+option_stockage = st.sidebar.selectbox(
+    "Emplacement de la mémoire",
+    ["PC Local (C:\\app_velos)", "Réseau d'entreprise / NAS", "Dossier Synchronisé (Drive)"]
+)
+
+st.sidebar.markdown("---")
+
+# Importation des fichiers principaux et de comparaison (Anti-perte)
+st.sidebar.subheader("📂 Fichiers de Production")
+fichier_principal = st.sidebar.file_uploader("Fichier Excel / CSV principal", type=["xlsx", "xls", "csv"])
+fichier_comparaison = st.sidebar.file_uploader("Fichier 2 (Pour Réconciliation / Anti-perte)", type=["xlsx", "xls", "csv"])
+
+st.sidebar.markdown("---")
+
+menu = st.sidebar.radio(
     "Navigation",
     [
-        "🏠 Accueil & Menu Principal",
-        "📈 Analyse Quotidienne (Excel/CSV)",
-        "👷 Gestion Salariés & Badges",
-        "📅 Planning & Feuille Présence A4",
-        "🚨 Sécurité & Lève-Vélos",
-        "📸 Album Souvenirs Atelier"
+        "📊 Tableau de Bord & Formulaires", 
+        "📈 Graphiques & Visualisations", 
+        "🕒 Charge Journalière & Mensuelle", 
+        "👥 Agents, Contrats & Alertes", 
+        "💰 Calculateur de Primes (Vélos Soldés)",
+        "📅 Planning & Codes (ANR, AJNP, CP...)",
+        "🔍 Réconciliation & Anti-Perte",
+        "🧰 Sécurité, Outillage & Personnel"
     ]
 )
 
-# ==========================================
-# 0. ACCUEIL
-# ==========================================
-if menu_option == "🏠 Accueil & Menu Principal":
-    st.markdown('<div class="vlg-banner"><h1>🚲 Intranet de l\'Atelier VLG</h1><p>Bienvenue sur votre plateforme de gestion quotidienne.</p></div>', unsafe_allow_html=True)
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.markdown('<div class="card-menu"><h3>📈 Analyse Quotidienne</h3><p>Import Excel/CSV, calcul des vélos, catégories A/B/C, charges et primes.</p></div>', unsafe_allow_html=True)
-    with col2:
-        st.markdown('<div class="card-menu"><h3>📅 Feuille Présence A4</h3><p>Badges, téléphones et cases de signature 1x3 cm prêtes à imprimer.</p></div>', unsafe_allow_html=True)
-    with col3:
-        st.markdown('<div class="card-menu"><h3>🚨 Sécurité & HSE</h3><p>Suivi des 30 lève-vélos et enregistrement des AT.</p></div>', unsafe_allow_html=True)
+if st.sidebar.button("Déconnexion"):
+    st.session_state.connecte = False
+    st.rerun()
 
-# ==========================================
-# 1. SECTION : ANALYSE DES INTERVENTIONS & PRIMES (JOURNALIER)
-# ==========================================
-elif menu_option == "📈 Analyse Quotidienne (Excel/CSV)":
-    st.header("📈 Analyse Quotidienne des Interventions & Primes")
-    uploaded_file = st.file_uploader("📂 Injecter le fichier Excel / CSV du jour", type=["xls", "xlsx", "csv"])
-
-    if uploaded_file is not None:
-        try:
-            df = lire_fichier(uploaded_file)
-            st.success(f"Fichier **{uploaded_file.name}** injecté avec succès ! ({len(df)} interventions enregistrées)")
-
-            actor_col, cat_abc_col, cat_model_col = ACTOR_COL, CAT_ABC_COL, CAT_MODEL_COL
-            mat_col, charge_col = MAT_COL, CHARGE_COL
-
-            df['Charge_heures'] = df[charge_col].apply(parse_time_to_hours) if charge_col in df.columns else 0.0
-
-            total_acteurs = df[actor_col].nunique() if actor_col in df.columns else 0
-            total_interventions = len(df)
-            total_materiels = df[mat_col].nunique() if mat_col in df.columns else 0
-            moyenne_velos_equipe = total_interventions / total_acteurs if total_acteurs > 0 else 0
-            total_charge = df['Charge_heures'].sum()
-
-            col1, col2, col3, col4, col5 = st.columns(5)
-            col1.metric("Nombre de Mécaniciens", total_acteurs)
-            col2.metric("Total Vélos Sortis", total_interventions)
-            col3.metric("Matériels Uniques", total_materiels)
-            col4.metric("Moyenne Équipe", f"{moyenne_velos_equipe:.2f} vélos")
-            col5.metric("Charge Totale Prévue", format_hours(total_charge))
-
-            st.divider()
-
-            tab1, tab2, tab3, tab4 = st.tabs([
-                "🚴‍♂️ Vélos Sortis & Primes",
-                "🏷️ Catégories A / B / C",
-                "📌 Synthèse & Charges",
-                "🚲 Modèles (VAE / VLS)"
-            ])
-
-            with tab1:
-                st.subheader("Analyse des Vélos Sortis, Statut d'Éligibilité et Primes")
-                st.info("💡 **Condition de prime :** À partir de **6 vélos sortis** (50,00 €) jusqu'à **10 vélos** (155,00 € max).")
-
-                agent_bikes = df.groupby(actor_col).agg(
-                    Velos_Sortis=(mat_col, 'count')
-                ).reset_index()
-
-                agent_bikes['Éligibilité'] = agent_bikes['Velos_Sortis'].apply(
-                    lambda x: "🟢 Droit de prime" if x >= 6.0 else "🔴 Pas de prime"
-                )
-                agent_bikes['Montant Prime (€)'] = agent_bikes['Velos_Sortis'].apply(calculer_prime)
-                agent_bikes = agent_bikes.sort_values(by='Velos_Sortis', ascending=False)
-
-                styled_df = agent_bikes.style.applymap(color_eligibility, subset=['Éligibilité']).format({
-                    'Montant Prime (€)': '{:.2f} €'
-                })
-                st.dataframe(styled_df, use_container_width=True)
-
-                excel_data = to_excel(agent_bikes)
-                st.download_button(
-                    label="📥 Télécharger ce rapport avec Primes (Excel)",
-                    data=excel_data,
-                    file_name=f"rapport_primes_mecaniciens_{datetime.date.today()}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
-
-                st.bar_chart(agent_bikes.set_index(actor_col)['Velos_Sortis'])
-
-            with tab2:
-                st.subheader("Analyse des Catégories A, B, C par acteur")
-                if cat_abc_col in df.columns:
-                    ct_abc = pd.crosstab(df[actor_col], df[cat_abc_col])
-                    for col in ['A', 'B', 'C']:
-                        if col not in ct_abc.columns:
-                            ct_abc[col] = 0
-                    ct_abc = ct_abc[['A', 'B', 'C']]
-                    ct_abc['Total Matériel'] = ct_abc.sum(axis=1)
-
-                    ct_abc['% Cat A'] = (ct_abc['A'] / ct_abc['Total Matériel'] * 100).round(1).astype(str) + '%'
-                    ct_abc['% Cat B'] = (ct_abc['B'] / ct_abc['Total Matériel'] * 100).round(1).astype(str) + '%'
-                    ct_abc['% Cat C'] = (ct_abc['C'] / ct_abc['Total Matériel'] * 100).round(1).astype(str) + '%'
-
-                    res_abc = ct_abc.reset_index()[[actor_col, 'A', '% Cat A', 'B', '% Cat B', 'C', '% Cat C', 'Total Matériel']]
-                    st.dataframe(res_abc, use_container_width=True)
-                else:
-                    st.warning("Colonne de catégorie A/B/C introuvable dans le fichier.")
-
-            with tab3:
-                st.subheader("Nombre de matériels et charge prévue par acteur")
-                summary = df.groupby(actor_col).agg(
-                    Nombre_Materiel=(mat_col, 'count'),
-                    Total_Charge_Heures=('Charge_heures', 'sum')
-                ).reset_index()
-                summary['Charge Prévue'] = summary['Total_Charge_Heures'].apply(format_hours)
-                summary = summary[[actor_col, 'Nombre_Materiel', 'Charge Prévue']]
-                st.dataframe(summary, use_container_width=True)
-
-            with tab4:
-                st.subheader("Répartition des modèles d'équipement (VAE / VLS)")
-                if cat_model_col in df.columns:
-                    ct_model = pd.crosstab(df[actor_col], df[cat_model_col]).reset_index()
-                    st.dataframe(ct_model, use_container_width=True)
-
-        except Exception as e:
-            st.error(f"Erreur lors du traitement du fichier : {e}")
-
-# ==========================================
-# 2. GESTION DYNAMIQUE DES SALARIÉS
-# ==========================================
-elif menu_option == "👷 Gestion Salariés & Badges":
-    st.header("👷 Modification & Gestion des Agents")
-    st.write("Vous pouvez ajouter, modifier ou renommer les mécaniciens à tout moment.")
-
-    with st.form("form_add_agent"):
-        col_a1, col_a2, col_a3 = st.columns(3)
-        with col_a1:
-            n_nom = st.text_input("Nom & Prénom Agent")
-        with col_a2:
-            n_tel = st.text_input("N° Téléphone")
-        with col_a3:
-            n_badge = st.text_input("N° Badge")
-        if st.form_submit_button("➕ Enregistrer / Modifier Agent") and n_nom:
-            nom_c = n_nom.strip().upper()
-            st.session_state["agents_db"][nom_c] = {
-                "nom": nom_c, "tel": n_tel, "badge": n_badge, "contrat": "CDI", "debut": str(datetime.date.today()), "fin": "", "dotation": "Complet"
-            }
-            st.success(f"Agent {nom_c} mis à jour avec succès !")
-            st.rerun()
-
-    st.subheader("📋 Liste Actuelle des Agents Modifiables")
-    df_ag = pd.DataFrame(list(st.session_state["agents_db"].values()))
-    st.dataframe(df_ag[["nom", "tel", "badge", "contrat"]], use_container_width=True, hide_index=True)
-
-# ==========================================
-# 3. PLANNING & FEUILLE A4 PORTRAIT
-# ==========================================
-elif menu_option == "📅 Planning & Feuille Présence A4":
-    st.header("📄 Feuille de Présence A4 à Imprimer (100% Encadrée)")
-    semaine = st.selectbox("Semaine", list(range(1, 53)))
-    jour = st.selectbox("Jour de la semaine", JOURS_SEMAINE)
-
-    agents_list = list(st.session_state["agents_db"].values())
+# --- CHARGEMENT DES DONNÉES ---
+@st.cache_data
+def charger_donnees_fictives():
+    data_interventions = pd.DataFrame({
+        "Code de l'intervention": ["INT-001", "INT-002", "INT-003", "INT-004", "INT-005"],
+        "Date/heure de fin de l'intervention": ["2026-10-01 10:00:00", "2026-10-02 11:30:00", "2026-10-02 14:00:00", "2026-10-03 09:15:00", "2026-10-04 16:45:00"],
+        "Assigné à l'acteur Libellé": ["KEBE BAMBO", "DEDOU BENGARAA", "KEBE BAMBO", "KORAICH YOUNES", "FARID SALHI"],
+        "Modèle d'équipement": ["VAE", "VLS", "VAE", "VLS", "VAE"],
+        "Identifiant du formulaire personnalisé": ["A", "B", "C", "A", "B"],
+        "Etat": ["Soudé", "Soudé", "À contrôler", "Soudé", "Soudé"],
+        "Charge prévue": ["00:30:00", "00:45:00", "01:00:00", "00:25:00", "00:40:00"]
+    })
     
-    if st.button("📥 Générer la Feuille de Présence A4 (Excel encadré)"):
-        output_pres = io.BytesIO()
-        wb = openpyxl.Workbook()
-        ws = wb.active
-        ws.title = "Presence_A4"
+    data_agents = pd.DataFrame({
+        "Nom": ["KEBE BAMBO", "DEDOU BENGARAA", "KORAICH YOUNES", "FARID SALHI"],
+        "Badge": ["B001", "B002", "B003", "B004"],
+        "Tel_Travail": ["0611223344", "0622334455", "0633445566", "0644556677"],
+        "Visiteur_ID": ["V-101", "V-102", "V-103", "V-104"],
+        "Date_Debut": ["2026-01-10", "2025-11-01", "2026-05-10", "2026-05-20"],
+        "Date_Fin": ["2026-11-05", "2026-11-15", "2026-06-05", "2027-05-20"], # Alerte pour Kebe et Dedou
+        "Jours_Presents": [18, 19, 15, 20],
+        "Heures_Moyennes_Jour": [7.5, 7.2, 6.8, 8.0], # Contrôle 7h minimum
+        "Jours_ANR": [1, 0, 2, 0],
+        "Jours_AJNP": [0, 1, 0, 1],
+        "Jours_CP": [1, 1, 0, 0],
+        "Jours_AT": [0, 0, 1, 0]
+    })
+    return data_interventions, data_agents
 
-        ws.page_setup.orientation = ws.ORIENTATION_PORTRAIT
-        ws.page_setup.paperSize = ws.PAPERSIZE_A4
-        ws.sheet_properties.pageSetUpPr.fitToPage = True
-        ws.page_setup.fitToWidth = 1
-        ws.page_setup.fitToHeight = 0
+# Lecture du fichier principal
+if fichier_principal is not None:
+    try:
+        if fichier_principal.name.endswith('.csv'):
+            df_interventions = pd.read_csv(fichier_principal)
+        else:
+            df_interventions = pd.read_excel(fichier_principal)
+        st.sidebar.success("✅ Fichier principal chargé !")
+        _, df_agents = charger_donnees_fictives()
+    except Exception as e:
+        st.sidebar.error(f"Erreur de lecture : {e}")
+        df_interventions, df_agents = charger_donnees_fictives()
+else:
+    df_interventions, df_agents = charger_donnees_fictives()
 
-        black_border_thin = Border(
-            left=Side(style='thin', color='000000'), right=Side(style='thin', color='000000'),
-            top=Side(style='thin', color='000000'), bottom=Side(style='thin', color='000000')
-        )
-        black_border_medium = Border(
-            left=Side(style='medium', color='000000'), right=Side(style='medium', color='000000'),
-            top=Side(style='medium', color='000000'), bottom=Side(style='medium', color='000000')
-        )
+# Normalisation des dates de fin d'intervention
+if "Date/heure de fin de l'intervention" in df_interventions.columns:
+    df_interventions["Date_Fin_dt"] = pd.to_datetime(df_interventions["Date/heure de fin de l'intervention"], errors='coerce').dt.date
+else:
+    df_interventions["Date_Fin_dt"] = date.today()
 
-        ws.merge_cells('A1:E1')
-        ws['A1'] = "MOBISERVICE - ATELIER VILLENEUVE-LA-GARENNE"
-        ws['A1'].font = Font(name='Calibri', size=14, bold=True, color="1E3A8A")
-        ws['A1'].alignment = Alignment(horizontal="center", vertical="center")
+df_agents["Date_Fin_dt"] = pd.to_datetime(df_agents["Date_Fin"], errors='coerce').dt.date
 
-        ws.merge_cells('A2:E2')
-        ws['A2'] = f"FEUILLE DE PRÉSENCE & BADGES - {jour.upper()} (Semaine {semaine})"
-        ws['A2'].font = Font(name='Calibri', size=12, bold=True)
-        ws['A2'].alignment = Alignment(horizontal="center", vertical="center")
+# --- MODULE D'ALERTE ROUGE (7 JOURS OUVRABLES) ---
+def est_dans_7_jours_ouvrables(date_fin):
+    if pd.isna(date_fin):
+        return False
+    aujourdhui = date.today()
+    if date_fin < aujourdhui:
+        return True
+    jours_ouvrables = 0
+    curseur = aujourdhui
+    while curseur < date_fin and jours_ouvrables < 8:
+        curseur += timedelta(days=1)
+        if curseur.weekday() < 5:
+            jours_ouvrables += 1
+    return jours_ouvrables <= 7
 
-        headers = ["NOM & PRÉNOM", "TEL N°", "BADGE N°", "SIGNATURE 07H00", "SIGNATURE 14H00"]
-        ws.row_dimensions[4].height = 28
+agents_en_alerte = []
+for idx, row in df_agents.iterrows():
+    if est_dans_7_jours_ouvrables(row["Date_Fin_dt"]):
+        agents_en_alerte.append(row["Nom"])
 
-        for col_idx, h in enumerate(headers, 1):
-            cell = ws.cell(row=4, column=col_idx, value=h)
-            cell.font = Font(name='Calibri', size=11, bold=True, color="FFFFFF")
-            cell.fill = PatternFill(start_color="1E3A8A", end_color="1E3A8A", fill_type="solid")
-            cell.alignment = Alignment(horizontal="center", vertical="center")
-            cell.border = black_border_medium
+if agents_en_alerte:
+    st.markdown(
+        f"""
+        <div style="background-color: #ff4b4b; color: white; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+            <h3>🚨 ALERTE CRITIQUE : Fin de contrat imminente (≤ 7 jours ouvrables)</h3>
+            <p>Agents concernés : <b>{', '.join(agents_en_alerte)}</b>. Veuillez régulariser leur situation.</p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
-        row_idx = 4
-        for ag in agents_list:
-            row_idx += 1
-            ws.row_dimensions[row_idx].height = 32  # ~1cm hauteur signature
+# --- 3. CONTENU DES ONGLETS ---
 
-            ws.cell(row=row_idx, column=1, value=ag["nom"]).border = black_border_thin
-            ws.cell(row=row_idx, column=2, value=str(ag["tel"])).border = black_border_thin
-            ws.cell(row=row_idx, column=3, value=str(ag["badge"])).border = black_border_thin
-            ws.cell(row=row_idx, column=4, value="").border = black_border_thin
-            ws.cell(row=row_idx, column=5, value="").border = black_border_thin
+if menu == "📊 Tableau de Bord & Formulaires":
+    st.title("📊 Tableau de Bord & Analyse de Production")
+    
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Interventions Totales", len(df_interventions))
+    col2.metric("Agents Actifs", len(df_agents))
+    col3.metric("Stockage Actif", option_stockage)
+    col4.metric("Fichiers chargés", "Oui" if fichier_principal else "Démo")
+    
+    st.markdown("---")
+    st.subheader("📋 Synthèse des Formulaires (A, B, C) & États")
+    if "Identifiant du formulaire personnalisé" in df_interventions.columns:
+        form_summary = df_interventions.groupby("Identifiant du formulaire personnalisé").agg(
+            Total=("Code de l'intervention", "count")
+        ).reset_index()
+        st.dataframe(form_summary, use_container_width=True)
+    else:
+        st.write("Colonne de formulaire non détectée dans ce fichier.")
 
-        ws.column_dimensions['A'].width = 30
-        ws.column_dimensions['B'].width = 12
-        ws.column_dimensions['C'].width = 12
-        ws.column_dimensions['D'].width = 22  # ~3cm largeur
-        ws.column_dimensions['E'].width = 22  # ~3cm largeur
+elif menu == "📈 Graphiques & Visualisations":
+    st.title("📈 Visualisations Graphiques Avancées (Barres, Camemberts, Courbes)")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader("📊 Vélos traités par Mécanicien")
+        if "Assigné à l'acteur Libellé" in df_interventions.columns:
+            fig, ax = plt.subplots()
+            acteur_counts = df_interventions["Assigné à l'acteur Libellé"].value_counts()
+            acteur_counts.plot(kind="bar", ax=ax, color="#2b5c8f")
+            ax.set_ylabel("Nombre d'interventions")
+            st.pyplot(fig)
+        else:
+            st.info("Données d'acteurs indisponibles.")
+            
+    with col2:
+        st.subheader("🥧 Répartition par Modèle d'Équipement")
+        if "Modèle d'équipement" in df_interventions.columns:
+            fig2, ax2 = plt.subplots()
+            modele_counts = df_interventions["Modèle d'équipement"].value_counts()
+            modele_counts.plot(kind="pie", ax=ax2, autopct="%1.1f%%", startangle=90)
+            ax2.set_ylabel("")
+            st.pyplot(fig2)
+        else:
+            st.info("Données de modèles indisponibles.")
 
-        wb.save(output_pres)
-        output_pres.seek(0)
+elif menu == "🕒 Charge Journalière & Mensuelle":
+    st.title("🕒 Suivi de la Charge de Travail (Jour & Mois)")
+    
+    # Sélecteur de période de travaux
+    st.subheader("📅 Sélectionner la période de travail")
+    col_d1, col_d2 = st.columns(2)
+    date_debut_sel = col_d1.date_input("Date de début", date.today() - timedelta(days=30))
+    date_fin_sel = col_d2.date_input("Date de fin", date.today())
+    
+    # Filtrage par date
+    df_f = df_interventions[(df_interventions["Date_Fin_dt"] >= date_debut_sel) & (df_interventions["Date_Fin_dt"] <= date_fin_sel)]
+    
+    st.write(f"Nombre d'interventions sur la période sélectionnée : **{len(df_f)}**")
+    
+    if not df_f.empty and "Date_Fin_dt" in df_f.columns:
+        charge_jour = df_f.groupby("Date_Fin_dt").size().reset_index(name="Nombre_Interventions")
+        st.subheader("📈 Courbe d'évolution journalière")
+        st.line_chart(charge_jour.set_index("Date_Fin_dt"))
+        st.dataframe(charge_jour, use_container_width=True)
+    else:
+        st.warning("Aucune donnée pour cette période.")
 
-        st.download_button(
-            "Télécharger le Fichier Excel Prêt à Imprimer",
-            data=output_pres.getvalue(),
-            file_name=f"feuille_presence_S{semaine}_{jour}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+elif menu == "👥 Agents, Contrats & Alertes":
+    st.title("👥 Gestion des Salariés en Insertion & Fiches Personnel")
+    st.write("Liste complète des agents, numéros de badge, téléphones de travail et visiteurs :")
+    
+    st.dataframe(df_agents[["Nom", "Badge", "Tel_Travail", "Visiteur_ID", "Date_Debut", "Date_Fin"]], use_container_width=True)
+    
+    st.info("💡 L'administrateur peut modifier ou ajouter des agents via le panneau de configuration interne.")
 
-# ==========================================
-# 4. SÉCURITÉ & LÈVE-VÉLOS
-# ==========================================
-elif menu_option == "🚨 Sécurité & Lève-Vélos":
-    st.header("🚨 Suivi Sécurité & 30 Lève-Vélos")
-    for lv in st.session_state["leve_velos_db"][:5]:  # Affichage exemple
-        st.write(f"📍 **{lv['nom']}** — Statut : {lv['statut']}")
+elif menu == "💰 Calculateur de Primes (Vélos Soldés)":
+    st.title("💰 Module de Calcul des Primes (Basé uniquement sur les Vélos Soldés)")
+    st.markdown("""
+    * **Règle des paliers :** Début de prime à **7 vélos/jour** (60 €) jusqu'à **10 vélos/jour** (155 €) avec interpolation progressive.
+    * **Prise en compte du planning :** Les codes **ANR** et **AJNP** sont comptés comme des jours travaillés/assimilés.
+    * **Contrôle de présence :** Vérification du seuil minimum de présence (ex: 7h/jour).
+    """)
+    
+    # Filtrer uniquement les vélos soldés ("Soudé" ou état validé)
+    if "Etat" in df_interventions.columns:
+        df_soldes = df_interventions[df_interventions["Etat"].str.contains("Soudé|Soldé", case=False, na=False)]
+    else:
+        df_soldes = df_interventions # Par défaut si la colonne n'existe pas
+        
+    resultats_primes = []
+    for idx, row in df_agents.iterrows():
+        nom_agent = row["Nom"]
+        # Compter les vélos soldés de cet agent dans le fichier
+        if "Assigné à l'acteur Libellé" in df_soldes.columns:
+            velos_soldes = len(df_soldes[df_soldes["Assigné à l'acteur Libellé"].str.strip().str.upper() == nom_agent.strip().str.upper()])
+        else:
+            velos_soldes = 120 # Valeur par défaut de secours
+            
+        # Jours travaillés + assimilation ANR et AJNP
+        jours_utiles = row["Jours_Presents"] + row["Jours_ANR"] + row["Jours_AJNP"]
+        moyenne = velos_soldes / jours_utiles if jours_utiles > 0 else 0
+        
+        # Contrôle de présence minimum (7h/jour)
+        respect_temps = row["Heures_Moyennes_Jour"] >= 7.0
+        
+        # Calcul de la prime progressive
+        if not respect_temps or moyenne < 7.0:
+            prime_th = 0.0
+        elif 7.0 <= moyenne <= 10.0:
+            prime_th = 60.0 + ((moyenne - 7.0) / 3.0) * (155.0 - 60.0)
+        else:
+            prime_th = 155.0
+            
+        taux_pres = min(jours_utiles / 20.0, 1.0)
+        prime_fin = prime_th * taux_pres
+        
+        resultats_primes.append({
+            "Agent": nom_agent,
+            "Vélos Soldés": velos_soldes,
+            "Jours Travaillés + ANR/AJNP": jours_utiles,
+            "Moyenne Vélos/Jour": round(moyenne, 2),
+            "Présence ≥ 7h/j": "✅ Oui" if respect_temps else "❌ Non",
+            "Prime Finale (€)": round(prime_fin, 2)
+        })
+        
+    df_primes_calc = pd.DataFrame(resultats_primes)
+    st.dataframe(df_primes_calc, use_container_width=True)
 
-# ==========================================
-# 5. ALBUM SOUVENIRS
-# ==========================================
-elif menu_option == "📸 Album Souvenirs Atelier":
-    st.header("📸 Moments Forts & Album Souvenirs")
-    st.write("Espace de partage pour les photos et événements de l'atelier VLG.")
+elif menu == "📅 Planning & Codes (ANR, AJNP, CP...)":
+    st.title("📅 Gestion du Planning & Codes d'Absence / Présence (7h00 - 16h00)")
+    st.markdown("""
+    **Codes pris en charge dans le système :**
+    `ANR`, `AJNP`, `CP`, `AT`, `ARM`, `CPP`, `DGT`, `IAE`, `ABS`, `FOR`, `DISP`, `CONT`, `RET`.
+    """)
+    
+    st.subheader("Tableau récapitulatif des pointages et codes du personnel")
+    st.dataframe(df_agents[["Nom", "Jours_Presents", "Jours_ANR", "Jours_AJNP", "Jours_CP", "Jours_AT", "Heures_Moyennes_Jour"]], use_container_width=True)
+    st.info("Plage horaire standard de suivi d'atelier : **07h00 à 16h00** (Minimum 7h requis par jour).")
+
+elif menu == "🔍 Réconciliation & Anti-Perte":
+    st.title("🔍 Réconciliation & Interventions Perdues (Comparaison de 2 Fichiers)")
+    st.write("Ce module compare le fichier principal et le fichier 2 pour identifier les numéros d'intervention et matériel perdus ou non facturés.")
+    
+    if fichier_comparaison is not None:
+        try:
+            if fichier_comparaison.name.endswith('.csv'):
+                df_comp = pd.read_csv(fichier_comparaison)
+            else:
+                df_comp = pd.read_excel(fichier_comparaison)
+            
+            st.success("✅ Fichier 2 chargé avec succès pour comparaison !")
+            
+            # Comparaison par code d'intervention si disponible
+            if "Code de l'intervention" in df_interventions.columns and "Code de l'intervention" in df_comp.columns:
+                manquants = set(df_interventions["Code de l'intervention"]) - set(df_comp["Code de l'intervention"])
+                if manquants:
+                    st.warning(f"⚠️ {len(manquants)} intervention(s) présente(s) dans le fichier 1 mais absentes du fichier 2 :")
+                    st.write(list(manquants))
+                else:
+                    st.success("✅ Aucune divergence d'intervention constatée entre les deux fichiers.")
+            else:
+                st.info("Les colonnes de codes d'intervention ne permettent pas un croisement direct automatique.")
+        except Exception as e:
+            st.error(f"Erreur lors de la lecture du fichier de comparaison : {e}")
+    else:
+        st.warning("⚠️ Veuillez importer un **Fichier 2** dans la barre latérale pour activer la réconciliation anti-perte.")
+
+elif menu == "🧰 Sécurité, Outillage & Personnel":
+    st.title("🧰 Suivi Sécurité, Outillage (40 Outils) & Registre")
+    
+    tab1, tab2, tab3 = st.tabs(["Outillage (40 Outils)", "Suivi Levage & Sécurité", "Feuilles d'Émargement"])
+    
+    with tab1:
+        st.subheader("Gestion des dotations et prêts d'outils (Perceuses, Pinces, Clés...)")
+        outils_data = pd.DataFrame({
+            "ID Outil": [f"OUT-{i:02d}" for i in range(1, 41)],
+            "Nom de l'outil": ["Perceuse sans fil", "Pince coupante", "Clé dynamométrique", "Tournevis isolés", "Multimètre"] * 8,
+            "État": ["Bon", "En service", "En service", "En maintenance", "Bon"] * 8,
+            "Attribué à": ["KEBE BAMBO", "DEDOU BENGARAA", "KORAICH YOUNES", "FARID SALHI", "Non assigné"] * 8
+        })
+        st.dataframe(outils_data, use_container_width=True)
+        
+    with tab2:
+        st.subheader("Registre de Sécurité & Levage des Vélos")
+        st.write("Suivi obligatoire des postes de levage (24 postes) et dates de diagnostic :")
+        securite_data = pd.DataFrame({
+            "Poste de Levage": [f"Poste #{i}" for i in range(1, 25)],
+            "Date de Dernier Contrôle": pd.date_range(start="2026-10-01", periods=24, freq="D").strftime("%Y-%m-%d"),
+            "État de Conformité": ["Conforme", "Conforme", "À réviser", "Conforme"] * 6,
+            "Sujet / Remarque": ["RAS", "Vérification vérin", "Graissage chaîne", "RAS"] * 6
+        })
+        st.dataframe(securite_data, use_container_width=True)
+        
+    with tab3:
+        st.subheader("Feuilles d'Émargement & Suivi Journalier")
+        st.write("Registre des signatures de présence et émargement des équipes d'insertion par date.")
+        emargement_sample = pd.DataFrame({
+            "Date": ["2026-10-28", "2026-10-28", "2026-10-28"],
+            "Agent": ["KEBE BAMBO", "DEDOU BENGARAA", "KORAICH YOUNES"],
+            "Heure Arrivée (07h00+)": ["07:02", "06:58", "07:15"],
+            "Heure Départ (16h00)": ["16:05", "16:00", "16:10"],
+            "Signature Émargement": ["Validé", "Validé", "Validé"]
+        })
+        st.dataframe(emargement_sample, use_container_width=True)

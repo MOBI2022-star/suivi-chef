@@ -1,3 +1,22 @@
+# --- 2. BARRE LATÉRALE & PARAMÈTRES ---
+st.sidebar.title("🚲 Menu Analyse Chef")
+st.sidebar.success("Connecté en tant qu'Administrateur")
+
+# Stockage & Mémoire
+option_stockage = st.sidebar.selectbox(
+    "Emplacement de la mémoire",
+    ["PC Local (C:\\app_velos)", "Réseau d'entreprise / NAS", "Dossier Synchronisé (Drive)"]
+)
+
+st.sidebar.markdown("---")
+
+# 📂 PETITE FENÊTRE POUR INJECTER LES FICHIERS EXCEL / CSV (AJOUTÉE ICI)
+st.sidebar.subheader("📂 Injection des Fichiers")
+fichier_principal = st.sidebar.file_uploader("Fichier Excel / CSV principal (Production)", type=["xlsx", "xls", "csv"])
+fichier_comparaison = st.sidebar.file_uploader("Fichier 2 (Réconciliation / Anti-perte)", type=["xlsx", "xls", "csv"])
+
+st.sidebar.markdown("---")
+
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
